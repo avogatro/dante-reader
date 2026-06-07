@@ -1,0 +1,16 @@
+# Ignore local API credentials config
+config.json
+
+# Ignore tools folder containing downoader utilities (optional, let's keep git clean)
+# tools/
+*.pyc
+*.log
+crash*.txt
+
+# Ignore any pdf in the pdf folder
+e-book/pdf/**/*.pdf
+e-book/pdf/*.pdf
+
+# Ignore user preferences and scratch folder
+user_prefs.json
+scratch/

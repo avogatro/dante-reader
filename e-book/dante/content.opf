@@ -1,0 +1,29 @@
+<?xml version='1.0' encoding='UTF-8'?>
+
+<package xmlns:opf="http://www.idpf.org/2007/opf" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id" xml:lang="en">
+  <metadata>
+    <dc:rights>Public domain in the USA.</dc:rights>
+    <dc:identifier id="id">http://www.gutenberg.org/1004</dc:identifier>
+    <dc:creator id="author_0">Dante Alighieri</dc:creator>
+    <meta property="file-as" refines="#author_0">Dante Alighieri</meta>
+    <meta property="role" refines="#author_0" scheme="marc:relators">aut</meta>
+    <dc:contributor id="author_1">Henry Wadsworth Longfellow</dc:contributor>
+    <meta property="file-as" refines="#author_1">Longfellow, Henry Wadsworth</meta>
+    <meta property="role" refines="#author_1" scheme="marc:relators">trl</meta>
+    <dc:title>La Divina Commedia</dc:title>
+    <dc:language>en</dc:language>
+    <dc:language>it</dc:language>
+    <dc:subject>Epic poetry, Italian -- Translations into English</dc:subject>
+    <dc:subject>Italian poetry -- To 1400 -- Translations into English</dc:subject>
+    <dc:date>1997-08-01</dc:date>
+    <meta property="dcterms:modified">2026-05-01T11:52:14Z</meta>
+    <meta name="cover" content="cover-image"/>
+  </metadata>
+  <manifest>
+    <item href="2282509936237913640_cover.jpg" id="cover-image" media-type="image/jpeg" properties="cover-image"/>
+    <item href="content.json" id="item1" media-type="application/json"/>
+  </manifest>
+  <spine toc="ncx">
+    <!-- Spine is empty because navigation is driven by content.json in Dante format -->
+  </spine>
+</package>

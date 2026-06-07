@@ -1,0 +1,94 @@
+{
+  "font_family": "Segoe UI",
+  "font_size": 32,
+  "line_height": 1.5,
+  "page_width": 0,
+  "last_book": "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy, Volume 1, Hell [1995].epub",
+  "book_progress": {
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divina Commedia di Dante Paradiso (Italian) [999].epub": {
+      "chapter": 33
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divina Commedia di Dante Purgatorio [998].epub": {
+      "chapter": 7
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy, Volume 3, Paradise [1997].epub": {
+      "chapter": 15
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy, Volume 2, Purgatory [1996].epub": {
+      "chapter": 5
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divine Comedy, Cary's Translation, Purgatory [1006].epub": {
+      "chapter": 4
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divine Comedy, Longfellow's Translation, Complete [1004].epub": {
+      "chapter": 0
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy by Dante, Illustrated, Purgatory, Complete [8795].epub": {
+      "chapter": 14
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divina Commedia di Dante Inferno [997].epub": {
+      "chapter": 0
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy, Volume 1, Hell [1995].epub": {
+      "chapter": 7
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy of Dante Alighieri The Inferno [41537].epub": {
+      "chapter": 11
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\La Divina Commedia di Dante (Italian) Paradiso [1011].epub": {
+      "chapter": 2
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\La Divina Commedia di Dante (Italian) Inferno [1009].epub": {
+      "chapter": 35
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\La Divina Commedia di Dante (Italian) Complete [1000].epub": {
+      "chapter": 0
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divine Comedy, Longfellow's Translation, Hell [1001].epub": {
+      "chapter": 0
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divine Comedy, Longfellow's Translation, Paradise [1003].epub": {
+      "chapter": 4
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy by Dante, Illustrated, Hell, Complete [8789].epub": {
+      "chapter": 0
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\internallinks.epub": {
+      "chapter": 1
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divine Comedy, Cary's Translation, Complete [1008].epub": {
+      "chapter": 0
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\Divine Comedy, Longfellow's Translation, Purgatory [1002].epub": {
+      "chapter": 4
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy by Dante, Illustrated, Complete [8800].epub": {
+      "chapter": 0
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\The Divine Comedy by Dante, Illustrated, Paradise, Complete [8799].epub": {
+      "chapter": 5
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\dualbook_La_Divina_Commedia.dante": {
+      "chapter": 68
+    },
+    "G:\\My Drive\\projects\\ebook-reader\\e-book\\e-pub\\La Divina Commedia di Dante (Italian) Purgatorio [1010].epub": {
+      "chapter": 2
+    }
+  },
+  "tts_skip_footnotes": true,
+  "tts_voice_id": null,
+  "tts_rate": 160,
+  "window_width": 2560,
+  "window_height": 1360,
+  "library_dir": null,
+  "pdf_dark_mode": true,
+  "last_chapter_index": 0,
+  "last_scroll_position": 0.0,
+  "tts_voice": "aiden",
+  "tts_auto_next": false,
+  "pdf_reading_mode": true,
+  "epub_markdown_mode": false,
+  "parallel_mode": false,
+  "translation_lang": "Modern English",
+  "tts_target": "Translation (Right)"
+}
