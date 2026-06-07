@@ -49,7 +49,7 @@ def load_prefs() -> dict:
             saved = json.load(f)
         prefs.update(saved)
     except (FileNotFoundError, json.JSONDecodeError):
-        pass
+        save_prefs(prefs)
     return prefs
 
 
