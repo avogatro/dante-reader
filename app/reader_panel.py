@@ -228,7 +228,7 @@ class ReaderPanel(QWidget):
         
         self._table_nav_bar.addWidget(QLabel("TTS:"))
         self._table_tts_combo = QComboBox()
-        self._table_tts_combo.addItems(["Original", "IPA Pronunciation", "Translation"])
+        self._table_tts_combo.addItems(["Original", "Translation"])
         self._table_nav_bar.addWidget(self._table_tts_combo)
         
         self._table_controls_widget = QWidget()
@@ -298,6 +298,9 @@ class ReaderPanel(QWidget):
         self._page.runJavaScript(js)
 
     def _translate_visible_page(self):
+        if hasattr(self, "_chk_col_translation") and not self._chk_col_translation.isChecked():
+            self._chk_col_translation.setChecked(True)
+            
         js = """
         (function() {
             var rows = document.querySelectorAll('.translation-row');
@@ -447,10 +450,12 @@ class ReaderPanel(QWidget):
             self._chk_col_ipa.show()
             self._chk_col_ipa.setChecked(False)
             
-            # Setup default TTS target
-            idx = self._table_tts_combo.findText("IPA Pronunciation")
-            if idx >= 0:
-                self._table_tts_combo.setCurrentIndex(idx)
+            # Setup TTS targets for Dante
+            self._table_tts_combo.blockSignals(True)
+            self._table_tts_combo.clear()
+            self._table_tts_combo.addItems(["Original", "IPA Pronunciation", "Translation"])
+            self._table_tts_combo.setCurrentText("IPA Pronunciation")
+            self._table_tts_combo.blockSignals(False)
         else:
             # Setup default checkboxes for standard EPUB
             self._chk_col_original.setChecked(True)
@@ -458,9 +463,12 @@ class ReaderPanel(QWidget):
             self._chk_col_ipa.setChecked(False)
             self._chk_col_ipa.hide()
             
-            idx = self._table_tts_combo.findText("Original")
-            if idx >= 0:
-                self._table_tts_combo.setCurrentIndex(idx)
+            # Setup TTS targets for Standard
+            self._table_tts_combo.blockSignals(True)
+            self._table_tts_combo.clear()
+            self._table_tts_combo.addItems(["Original", "Translation"])
+            self._table_tts_combo.setCurrentText("Original")
+            self._table_tts_combo.blockSignals(False)
                 
         self._table_controls_widget.show()
         self._update_table_layout()
