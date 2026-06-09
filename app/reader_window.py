@@ -72,13 +72,16 @@ class ReaderWindow(QMainWindow):
         self._scheme_handler = EpubSchemeHandler(self)
 
         # ── Panels ──
+        from .footnotes_panel import FootnotesPanel
         self._library = LibraryPanel(self)
         self._reader = ReaderPanel(self._scheme_handler, self)
         self._ai = AiPanel(api_key=load_api_key(), parent=self)
+        self._footnotes_panel = FootnotesPanel(self)
 
         # ── Right Sidebar (AI Companion) ──
         self._right_tabs = QTabWidget()
         self._right_tabs.addTab(self._ai, "🤖 AI Companion")
+        self._right_tabs.addTab(self._footnotes_panel, "📝 Footnotes")
         self._right_tabs.setMinimumWidth(320)
 
         # ── Main Splitter ──
@@ -312,6 +315,7 @@ class ReaderWindow(QMainWindow):
         self._reader.prev_chapter_requested.connect(lambda: self._reader._prev_chapter())
         self._reader.next_chapter_requested.connect(lambda: self._reader._next_chapter())
         self._reader.audio_play_requested.connect(self._play_media_audio)
+        self._reader.footnote_requested.connect(self._on_footnote_requested)
 
         # Keyboard shortcuts for Navigation
         from PyQt6.QtGui import QKeySequence
@@ -417,9 +421,20 @@ class ReaderWindow(QMainWindow):
             # Save as last book
             self._prefs["last_book"] = path
             save_prefs(self._prefs)
+            
+            if hasattr(self._current_book, 'footnotes'):
+                self._footnotes_panel.load_footnotes(self._current_book.footnotes)
+            else:
+                self._footnotes_panel.load_footnotes({})
+
         except Exception as e:
             self._statusbar.showMessage(f"Error loading book: {e}")
             QMessageBox.warning(self, "Load Error", f"Could not load book:\n{e}")
+
+    def _on_footnote_requested(self, foot_id: str) -> None:
+        self._right_tabs.show()
+        self._right_tabs.setCurrentWidget(self._footnotes_panel)
+        self._footnotes_panel.scroll_to_footnote(foot_id)
 
     # ═══════════════════════════════════
     # Text Selection → AI

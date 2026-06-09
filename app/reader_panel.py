@@ -123,6 +123,7 @@ class ReaderPanel(QWidget):
     
     # Media signals
     audio_play_requested = pyqtSignal(str)
+    footnote_requested = pyqtSignal(str)
 
     def __init__(self, scheme_handler, parent=None):
         super().__init__(parent)
@@ -465,8 +466,8 @@ class ReaderPanel(QWidget):
             
             self._table_tts_combo.blockSignals(True)
             self._table_tts_combo.clear()
-            for val in tracks.values():
-                self._table_tts_combo.addItem(val.get("label", ""))
+            for key, val in tracks.items():
+                self._table_tts_combo.addItem(val.get("label", ""), key)
             if self._table_tts_combo.count() > 0:
                 self._table_tts_combo.setCurrentIndex(0)
             self._table_tts_combo.blockSignals(False)
@@ -829,11 +830,9 @@ class ReaderPanel(QWidget):
     def _handle_footnote_click(self, media_id: str) -> None:
         if not self._book or not hasattr(self._book, 'footnotes'):
             return
-        footnote_text = self._book.footnotes.get(media_id)
-        if not footnote_text:
+        if media_id not in self._book.footnotes:
             return
-        from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.information(self, "Footnote", footnote_text)
+        self.footnote_requested.emit(media_id)
 
 
 
@@ -1017,14 +1016,18 @@ class ReaderPanel(QWidget):
             callback("")
             return
             
-        target_selector = ""
-        target = self._table_tts_combo.currentText()
-        if target == "Original":
-            target_selector = ".track-original, .track-it"
-        elif target == "Translation":
-            target_selector = ".track-translation, .track-en"
-        elif target == "IPA Pronunciation":
-            target_selector = ".track-ipa"
+        target_key = self._table_tts_combo.currentData()
+        if target_key:
+            target_selector = f".track-{target_key}"
+        else:
+            # Fallback for V1
+            target = self._table_tts_combo.currentText()
+            if target == "Original":
+                target_selector = ".track-original, .track-it"
+            elif target == "Translation":
+                target_selector = ".track-translation, .track-en"
+            elif target == "IPA Pronunciation":
+                target_selector = ".track-ipa"
         
         # JS to get text from selection/cursor to the end of the chapter.
         # If in Dante mode, it restricts extraction to the selected `target_selector`.
@@ -1052,44 +1055,33 @@ class ReaderPanel(QWidget):
                     }}
                 }}
                 
-                var texts = [];
+                var textPieces = [];
                 for (var i = startIndex; i < cells.length; i++) {{
-                    if (cells[i].innerText.trim()) {{
-                        texts.push(cells[i].innerText.trim());
+                    var cell = cells[i];
+                    var clone = cell.cloneNode(true);
+                    
+                    // Remove multimedia buttons, images, and superscripts (like [183])
+                    var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup');
+                    elementsToRemove.forEach(function(el) {{ el.remove(); }});
+                    
+                    var text = clone.innerText || clone.textContent;
+                    if (text && text.trim().length > 0) {{
+                        textPieces.push(text.trim());
                     }}
                 }}
-                return texts.join('\\n');
+                return textPieces.join('\\n\\n');
             }}
             
-            if (sel && sel.rangeCount > 0 && sel.anchorNode) {{
-                // If there's a selection or cursor
-                if (targetClass) {{
-                    return extractDanteText(sel.anchorNode);
-                }} else {{
-                    var range = sel.getRangeAt(0).cloneRange();
-                    var endRange = document.createRange();
-                    endRange.selectNodeContents(document.body);
-                    range.setEnd(endRange.endContainer, endRange.endOffset);
-                    
-                    var fragment = range.cloneContents();
-                    var div = document.createElement('div');
-                    div.appendChild(fragment);
-                    document.body.appendChild(div);
-                    div.style.display = 'none';
-                    var text = div.innerText;
-                    document.body.removeChild(div);
-                    
-                    if (text.trim().length > 0) {{
-                        return text;
-                    }}
-                }}
-            }}
-            
-            // Fallback: whole document or whole Dante column
-            if (targetClass) {{
-                return extractDanteText(null);
+            if (targetClass && document.querySelectorAll(targetClass).length > 0) {{
+                return extractDanteText(sel.anchorNode);
             }} else {{
-                return document.body.innerText;
+                if (sel.rangeCount > 0 && sel.toString().length > 0) {{
+                    return sel.toString();
+                }}
+                var clone = document.body.cloneNode(true);
+                var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup');
+                elementsToRemove.forEach(function(el) {{ el.remove(); }});
+                return clone.innerText || clone.textContent;
             }}
         }})()
         """

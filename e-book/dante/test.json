@@ -16,7 +16,9 @@
     }
   },
   "footnotes": {
-    "foot-1": "This is a test footnote about the dark forest."
+    "foot-1": "This is a test footnote about the dark forest.",
+    "foot-2": "This is a 2nd test footnote about the dark forest.",
+    "foot-3": "This is a 3rd test footnote about the dark forest."
   },
   "images": {
     "img-1": {
@@ -57,8 +59,8 @@
                   "<div data-audio-id='audio-1'></div>"
                 ],
                 "longfellow": [
-                  "Midway upon the journey of our life",
-                  "I found myself within a forest dark,",
+                  "Midway upon the <a data-foot-id='foot-2'>journey</a> of our life",
+                  "I found myself <a data-foot-id='foot-3'>within</a> a forest dark,",
                   "For the straightforward pathway had been lost.",
                   "<div data-video-id='vid-1'></div>"
                 ],

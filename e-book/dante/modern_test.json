@@ -1,0 +1,77 @@
+{
+  "metadata": {
+    "tracks": {
+      "text": {
+        "label": "Italian (Original)",
+        "type": "text"
+      },
+      "longfellow": {
+        "label": "English (Longfellow)",
+        "type": "text"
+      },
+      "modern": {
+        "label": "Modern English (AI)",
+        "type": "text"
+      }
+    }
+  },
+  "footnotes": {
+    "foot-1": "Virgil is referring to the Emperor Augustus.",
+    "foot-2": "This signifies the dark forest of sin, confusion, and political turmoil."
+  },
+  "images": {},
+  "audio_clips": {},
+  "videos": {},
+  "books": [
+    {
+      "title": "Inferno",
+      "cantos": [
+        {
+          "canto_number": 1,
+          "blocks": [
+            {
+              "id": "c1-b1",
+              "tracks": {
+                "text": [
+                  "Nel mezzo del <a data-foot-id='foot-2'>cammin</a> di nostra vita",
+                  "mi ritrovai per una selva oscura,",
+                  "ché la diritta via era smarrita."
+                ],
+                "longfellow": [
+                  "Midway upon the journey of our life",
+                  "I found myself within a forest dark,",
+                  "For the straightforward pathway had been lost."
+                ],
+                "modern": [
+                  "Halfway through the journey of our life",
+                  "I woke up to find myself in a dark wood,",
+                  "because the right path had been completely lost."
+                ]
+              }
+            },
+            {
+              "id": "c1-b2",
+              "tracks": {
+                "text": [
+                  "Ahi quanto a dir qual era è cosa dura",
+                  "esta selva selvaggia e aspra e forte",
+                  "che nel pensier rinova la paura!"
+                ],
+                "longfellow": [
+                  "Ah me! how hard a thing it is to say",
+                  "What was this forest savage, rough, and stern,",
+                  "Which in the very thought renews the fear."
+                ],
+                "modern": [
+                  "Ah, how hard it is to describe it:",
+                  "this savage, wild, and harsh forest,",
+                  "just the thought of it brings back the fear!"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
