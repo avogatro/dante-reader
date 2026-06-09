@@ -117,7 +117,7 @@ class EpubSchemeHandler(QWebEngineUrlSchemeHandler):
 
         # Look up the asset in the EPUB
         data = self._book.get_asset(path)
-        if data is None:
+        if data is None and hasattr(self._book, '_assets'):
             # Try without leading directory components (some EPUBs have varying paths)
             # e.g., "OEBPS/images/cover.jpg" vs "images/cover.jpg"
             for asset_name in self._book._assets:

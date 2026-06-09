@@ -38,6 +38,13 @@ class ReaderWindow(QMainWindow):
         self._prefs = load_prefs()
         self._current_book: EpubBook | None = None
         self._tts = QwenTTSEngine(self)
+        
+        from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+        self._media_player = QMediaPlayer(self)
+        self._audio_output = QAudioOutput(self)
+        self._media_player.setAudioOutput(self._audio_output)
+        self._media_player.playbackStateChanged.connect(self._on_media_playback_state_changed)
+        self._current_media_id = None
 
         self.setWindowTitle("📖 Dante EPUB Reader")
         self.setMinimumSize(1000, 600)
@@ -304,6 +311,7 @@ class ReaderWindow(QMainWindow):
         self._reader.stop_tts_requested.connect(self._tts_stop)
         self._reader.prev_chapter_requested.connect(lambda: self._reader._prev_chapter())
         self._reader.next_chapter_requested.connect(lambda: self._reader._next_chapter())
+        self._reader.audio_play_requested.connect(self._play_media_audio)
 
         # Keyboard shortcuts for Navigation
         from PyQt6.QtGui import QKeySequence
@@ -555,6 +563,82 @@ class ReaderWindow(QMainWindow):
             self._reader._next_chapter()
             # Slight delay to let the chapter load before extracting text
             QTimer.singleShot(1000, self._tts_play)
+
+    # ═══════════════════════════════════
+    # Media Playback
+    # ═══════════════════════════════════
+    def _on_media_playback_state_changed(self, state):
+        from PyQt6.QtMultimedia import QMediaPlayer
+        if state == QMediaPlayer.PlaybackState.StoppedState:
+            if self._current_media_id:
+                if hasattr(self, '_reader') and self._reader and hasattr(self._reader, '_page'):
+                    self._reader._page.runJavaScript(f"if(window.setAudioButtonState) window.setAudioButtonState('{self._current_media_id}', false);")
+                self._current_media_id = None
+
+    def _play_media_audio(self, media_id: str) -> None:
+        """Play or toggle an embedded audio clip via QMediaPlayer."""
+        from PyQt6.QtCore import QUrl
+        from PyQt6.QtMultimedia import QMediaPlayer
+        
+        # Toggle if it's the same media and currently playing
+        if self._current_media_id == media_id and self._media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
+            self._media_player.stop()
+            self._statusbar.showMessage("Audio playback stopped")
+            return
+
+        if not self._current_book or not getattr(self._current_book, 'audio_clips', None):
+            return
+            
+        audio_data = self._current_book.audio_clips.get(media_id)
+        if not audio_data:
+            return
+            
+        filename = audio_data.get("file")
+        if not filename:
+            return
+            
+        # Stop TTS if it happens to be running
+        self._tts_stop()
+            
+        # We must extract the audio from the zip to a temporary file,
+        # because QMediaPlayer (FFmpeg) does not understand our custom 'epub://' scheme.
+        import os
+        import tempfile
+        try:
+            audio_bytes = self._current_book.get_asset(filename)
+            temp_dir = tempfile.gettempdir()
+            temp_path = os.path.join(temp_dir, f"dante_audio_{media_id}.mp3")
+            with open(temp_path, "wb") as f:
+                f.write(audio_bytes)
+            url = QUrl.fromLocalFile(temp_path)
+        except Exception as e:
+            self._statusbar.showMessage(f"Error loading audio: {e}")
+            return
+            
+        start_ms = int(audio_data.get("start_timestamp", 0) * 1000)
+        title = audio_data.get("title", "Audio Clip")
+        
+        def start_playback():
+            if start_ms > 0:
+                self._media_player.setPosition(start_ms)
+            self._media_player.play()
+            self._statusbar.showMessage(f"Playing audio: {title}")
+            self._current_media_id = media_id
+            if hasattr(self, '_reader') and self._reader and hasattr(self._reader, '_page'):
+                self._reader._page.runJavaScript(f"if(window.setAudioButtonState) window.setAudioButtonState('{media_id}', true);")
+
+        if self._media_player.source() == url:
+            start_playback()
+            return
+
+        self._media_player.setSource(url)
+        
+        def on_media_status_changed(status):
+            if status == QMediaPlayer.MediaStatus.LoadedMedia:
+                start_playback()
+                self._media_player.mediaStatusChanged.disconnect(on_media_status_changed)
+                
+        self._media_player.mediaStatusChanged.connect(on_media_status_changed)
 
     # ═══════════════════════════════════
     def _set_translation_lang(self, lang: str) -> None:

@@ -120,6 +120,9 @@ class ReaderPanel(QWidget):
     stop_tts_requested = pyqtSignal()
     prev_chapter_requested = pyqtSignal()
     next_chapter_requested = pyqtSignal()
+    
+    # Media signals
+    audio_play_requested = pyqtSignal(str)
 
     def __init__(self, scheme_handler, parent=None):
         super().__init__(parent)
@@ -204,21 +207,12 @@ class ReaderPanel(QWidget):
         self._table_nav_bar.setContentsMargins(12, 6, 12, 6)
         self._table_nav_bar.setSpacing(15)
         
-        from PyQt6.QtWidgets import QCheckBox
-        self._chk_col_original = QCheckBox("Original")
-        self._chk_col_original.setChecked(True)
-        self._chk_col_original.stateChanged.connect(self._update_table_layout)
-        self._table_nav_bar.addWidget(self._chk_col_original)
+        self._track_toggles_layout = QHBoxLayout()
+        self._track_toggles_layout.setSpacing(10)
+        self._track_toggles_layout.setContentsMargins(0, 0, 0, 0)
+        self._table_nav_bar.addLayout(self._track_toggles_layout)
         
-        self._chk_col_ipa = QCheckBox("IPA Pronunciation")
-        self._chk_col_ipa.setChecked(False)
-        self._chk_col_ipa.stateChanged.connect(self._update_table_layout)
-        self._table_nav_bar.addWidget(self._chk_col_ipa)
-        
-        self._chk_col_translation = QCheckBox("Translation")
-        self._chk_col_translation.setChecked(True)
-        self._chk_col_translation.stateChanged.connect(self._update_table_layout)
-        self._table_nav_bar.addWidget(self._chk_col_translation)
+        self._dynamic_checkboxes = {}
         
         self._btn_translate_page = QPushButton("Translate Page")
         self._btn_translate_page.clicked.connect(self._translate_visible_page)
@@ -261,23 +255,25 @@ class ReaderPanel(QWidget):
         self._tts_target = target
 
     def _get_table_layout_css(self) -> str:
-        show_orig = self._chk_col_original.isChecked()
-        show_trans = self._chk_col_translation.isChecked()
-        show_ipa = self._chk_col_ipa.isChecked()
-        
-        active_count = sum([show_orig, show_trans, show_ipa])
-        width_pct = (100.0 / active_count) if active_count > 0 else 100.0
-        
         css_lines = []
         
-        # For standard EPUBs, we use flex. .track-original and .track-translation are children of a flex container.
-        css_lines.append(f".track-original {{ display: {'block' if show_orig else 'none'} !important; flex: 1; padding: {'0 15px' if show_orig else '0'} !important; }}")
-        css_lines.append(f".track-translation {{ display: {'block' if show_trans else 'none'} !important; flex: 1; padding: {'0 15px' if show_trans else '0'} !important; }}")
-        
-        # For Dante, we use table cells
-        css_lines.append(f".track-it {{ display: {'table-cell' if show_orig else 'none'} !important; width: {width_pct if show_orig else 0}% !important; padding: {'0 15px' if show_orig else '0'} !important; }}")
-        css_lines.append(f".track-en {{ display: {'table-cell' if show_trans else 'none'} !important; width: {width_pct if show_trans else 0}% !important; padding: {'0 15px' if show_trans else '0'} !important; }}")
-        css_lines.append(f".track-ipa {{ display: {'table-cell' if show_ipa else 'none'} !important; width: {width_pct if show_ipa else 0}% !important; padding: {'0 15px' if show_ipa else '0'} !important; }}")
+        if getattr(self._book, 'is_dante', False):
+            active_count = sum(1 for chk in self._dynamic_checkboxes.values() if chk.isChecked())
+            width_pct = (100.0 / active_count) if active_count > 0 else 100.0
+            
+            for key, chk in self._dynamic_checkboxes.items():
+                is_checked = chk.isChecked()
+                css_lines.append(f".track-{key} {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
+                
+                # Backwards compatibility for V1 fallback classes
+                if key == "text": css_lines.append(f".track-it {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
+                if key == "ipa": css_lines.append(f".track-ipa {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
+                if key == "longfellow": css_lines.append(f".track-en {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
+        else:
+            show_orig = self._dynamic_checkboxes.get("original", type('obj', (object,), {'isChecked': lambda: True})).isChecked()
+            show_trans = self._dynamic_checkboxes.get("translation", type('obj', (object,), {'isChecked': lambda: False})).isChecked()
+            css_lines.append(f".track-original {{ display: {'block' if show_orig else 'none'} !important; flex: 1; padding: {'0 15px' if show_orig else '0'} !important; }}")
+            css_lines.append(f".track-translation {{ display: {'block' if show_trans else 'none'} !important; flex: 1; padding: {'0 15px' if show_trans else '0'} !important; }}")
         
         return " ".join(css_lines)
 
@@ -298,8 +294,9 @@ class ReaderPanel(QWidget):
         self._page.runJavaScript(js)
 
     def _translate_visible_page(self):
-        if hasattr(self, "_chk_col_translation") and not self._chk_col_translation.isChecked():
-            self._chk_col_translation.setChecked(True)
+        trans_chk = self._dynamic_checkboxes.get("translation")
+        if trans_chk and not trans_chk.isChecked():
+            trans_chk.setChecked(True)
             
         js = """
         (function() {
@@ -440,30 +437,53 @@ class ReaderPanel(QWidget):
         self._chapter_combo.show()
         self._chapter_label.show()
         
+        # Clear existing track toggles
+        for i in reversed(range(self._track_toggles_layout.count())): 
+            widget = self._track_toggles_layout.itemAt(i).widget()
+            if widget:
+                widget.setParent(None)
+        self._dynamic_checkboxes.clear()
+        
+        from PyQt6.QtWidgets import QCheckBox
+        
         if getattr(book, 'is_dante', False):
             from app.config import get_max_width_px
             self._page_width = get_max_width_px()
             
-            # Setup default checkboxes for Dante
-            self._chk_col_original.setChecked(True)
-            self._chk_col_translation.setChecked(True)
-            self._chk_col_ipa.show()
-            self._chk_col_ipa.setChecked(False)
+            tracks = getattr(book, 'metadata', {}).get('tracks', {
+                "text": {"label": "Original"},
+                "ipa": {"label": "IPA Pronunciation"},
+                "longfellow": {"label": "Translation"}
+            })
             
-            # Setup TTS targets for Dante
+            for key, val in tracks.items():
+                chk = QCheckBox(val.get("label", key))
+                chk.setChecked(key != "ipa")
+                chk.stateChanged.connect(self._update_table_layout)
+                self._track_toggles_layout.addWidget(chk)
+                self._dynamic_checkboxes[key] = chk
+            
             self._table_tts_combo.blockSignals(True)
             self._table_tts_combo.clear()
-            self._table_tts_combo.addItems(["Original", "IPA Pronunciation", "Translation"])
-            self._table_tts_combo.setCurrentText("IPA Pronunciation")
+            for val in tracks.values():
+                self._table_tts_combo.addItem(val.get("label", ""))
+            if self._table_tts_combo.count() > 0:
+                self._table_tts_combo.setCurrentIndex(0)
             self._table_tts_combo.blockSignals(False)
         else:
-            # Setup default checkboxes for standard EPUB
+            self._chk_col_original = QCheckBox("Original")
             self._chk_col_original.setChecked(True)
-            self._chk_col_translation.setChecked(False)
-            self._chk_col_ipa.setChecked(False)
-            self._chk_col_ipa.hide()
+            self._chk_col_original.stateChanged.connect(self._update_table_layout)
+            self._track_toggles_layout.addWidget(self._chk_col_original)
             
-            # Setup TTS targets for Standard
+            self._chk_col_translation = QCheckBox("Translation")
+            self._chk_col_translation.setChecked(False)
+            self._chk_col_translation.stateChanged.connect(self._update_table_layout)
+            self._track_toggles_layout.addWidget(self._chk_col_translation)
+            
+            self._dynamic_checkboxes["original"] = self._chk_col_original
+            self._dynamic_checkboxes["translation"] = self._chk_col_translation
+            
             self._table_tts_combo.blockSignals(True)
             self._table_tts_combo.clear()
             self._table_tts_combo.addItems(["Original", "Translation"])
@@ -710,11 +730,24 @@ class ReaderPanel(QWidget):
         url = request.url()
         scheme = url.scheme()
         path = url.path().lstrip("/")
-        # Intercept our custom Next button
-        if scheme == "epub" and url.host() == "action" and path == "next-chapter":
+        
+        # Intercept our custom actions
+        if scheme == "epub" and url.host() == "action":
             request.reject()
-            # Must defer navigation to avoid crashing QtWebEngine during event handling
-            QTimer.singleShot(0, self._next_chapter)
+            if path == "next-chapter":
+                QTimer.singleShot(0, self._next_chapter)
+            elif path == "media":
+                from PyQt6.QtCore import QUrlQuery
+                query = QUrlQuery(url.query())
+                media_type = query.queryItemValue("type")
+                media_id = query.queryItemValue("id")
+                
+                if media_type == "audio":
+                    QTimer.singleShot(0, lambda: self._handle_audio_click(media_id))
+                elif media_type == "video":
+                    QTimer.singleShot(0, lambda: self._handle_video_click(media_id))
+                elif media_type == "foot":
+                    QTimer.singleShot(0, lambda: self._handle_footnote_click(media_id))
             return
 
         try:
@@ -772,6 +805,35 @@ class ReaderPanel(QWidget):
 
         except Exception as e:
             print(f"[reader] Error in navigation handler: {e!r}", flush=True)
+
+    def _handle_audio_click(self, media_id: str) -> None:
+        self.audio_play_requested.emit(media_id)
+
+    def _handle_video_click(self, media_id: str) -> None:
+        if not self._book or not hasattr(self._book, 'videos'):
+            return
+        video_data = self._book.videos.get(media_id)
+        if not video_data:
+            return
+        import webbrowser
+        url = video_data.get("url", "")
+        start_time = video_data.get("start_timestamp", 0)
+        if url:
+            if "youtube.com" in url or "youtu.be" in url:
+                if "?" in url:
+                    url += f"&t={start_time}s"
+                else:
+                    url += f"?t={start_time}s"
+            webbrowser.open(url)
+
+    def _handle_footnote_click(self, media_id: str) -> None:
+        if not self._book or not hasattr(self._book, 'footnotes'):
+            return
+        footnote_text = self._book.footnotes.get(media_id)
+        if not footnote_text:
+            return
+        from PyQt6.QtWidgets import QMessageBox
+        QMessageBox.information(self, "Footnote", footnote_text)
 
 
 

@@ -1,0 +1,78 @@
+{
+  "metadata": {
+    "tracks": {
+      "text": {
+        "label": "Italian (Original)",
+        "type": "text"
+      },
+      "longfellow": {
+        "label": "English (Longfellow)",
+        "type": "text"
+      },
+      "mandelbaum": {
+        "label": "English (Mandelbaum)",
+        "type": "text"
+      }
+    }
+  },
+  "footnotes": {
+    "foot-1": "This is a test footnote about the dark forest."
+  },
+  "images": {
+    "img-1": {
+      "file": "2282509936237913640_cover.jpg",
+      "caption": "The dark forest cover",
+      "title": "Cover Image"
+    }
+  },
+  "audio_clips": {
+    "audio-1": {
+      "file": "test_audio.mp3",
+      "start_timestamp": 0,
+      "end_timestamp": 15,
+      "title": "Test Audio Track"
+    }
+  },
+  "videos": {
+    "vid-1": {
+      "url": "https://www.youtube.com/watch?v=3mr3Yr2AYHY",
+      "start_timestamp": 11,
+      "title": "YouTube Lecture"
+    }
+  },
+  "books": [
+    {
+      "title": "Test Book",
+      "cantos": [
+        {
+          "canto_number": 1,
+          "blocks": [
+            {
+              "id": "c1-b1",
+              "tracks": {
+                "text": [
+                  "Nel mezzo del <a data-foot-id='foot-1'>cammin</a> di nostra vita",
+                  "mi ritrovai per una selva oscura,",
+                  "ché la diritta via era smarrita.",
+                  "<div data-audio-id='audio-1'></div>"
+                ],
+                "longfellow": [
+                  "Midway upon the journey of our life",
+                  "I found myself within a forest dark,",
+                  "For the straightforward pathway had been lost.",
+                  "<div data-video-id='vid-1'></div>"
+                ],
+                "mandelbaum": [
+                  "<img data-image-id='img-1' src='epub://content/2282509936237913640_cover.jpg' />",
+                  "When I had journeyed half of our life's way,",
+                  "I found myself within a shadowed forest,",
+                  "for I had lost the path that does not stray."
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -18,8 +18,6 @@ class DanteChapter:
     def get_html(self) -> str:
         """
         Generate a single-page HTML table containing all tracks.
-        Columns have specific classes: track-it, track-en, track-ipa.
-        Visibility is controlled dynamically by the viewer.
         """
         html = [
             "<?xml version='1.0' encoding='utf-8'?>",
@@ -33,6 +31,10 @@ class DanteChapter:
             "td { vertical-align: top; padding: 0 15px; }",
             ".stanza-row { margin-bottom: 1.5em; }",
             ".line { margin: 0; }",
+            "button.media-btn { margin-top: 10px; cursor: pointer; background-color: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 10px; border-radius: 6px; font-size: 0.9em; font-family: 'Segoe UI', system-ui; }",
+            "button.media-btn:hover { background-color: #30363d; }",
+            "[data-foot-id] { color: #58a6ff; cursor: pointer; text-decoration: underline; }",
+            "[data-image-id] { width: 100%; max-width: 200px; height: auto; display: block; margin-bottom: 10px; border-radius: 4px; }",
             "</style>",
             "</head>",
             "<body>",
@@ -44,25 +46,107 @@ class DanteChapter:
         for block in self._blocks:
             # We add a spacer row between blocks/stanzas
             html.append('<tr class="stanza-row"><td colspan="3" style="height: 1.5em;"></td></tr>')
-            for line in block:
-                html.append('<tr>')
+            
+            if isinstance(block, dict) and "tracks" in block:
+                # V2 Schema
+                block_id = block.get("id", f"block_{trans_id}")
+                html.append(f'<tr class="block-row" id="{block_id}">')
+                tracks = block.get("tracks", {})
                 
-                # Italian (Original)
-                text_it = line.get("text", "")
-                html.append(f'<td class="track-it"><p class="line" data-trans-id="trans_{trans_id}">{text_it}</p></td>')
+                # Fetch metadata tracks from book to maintain order if possible
+                book_metadata = getattr(self._book_ref, 'metadata', {})
+                track_defs = book_metadata.get('tracks', {
+                    "text": {}, "ipa": {}, "longfellow": {}
+                })
                 
-                # IPA
-                text_ipa = line.get("ipa", "")
-                html.append(f'<td class="track-ipa"><p class="line" data-trans-id="trans_{trans_id}">{text_ipa}</p></td>')
-                
-                # English (Longfellow)
-                text_en = line.get("longfellow", "")
-                html.append(f'<td class="track-en"><p class="line" data-trans-id="trans_{trans_id}">{text_en}</p></td>')
-                
+                for track_key in track_defs.keys():
+                    lines = tracks.get(track_key, [])
+                    
+                    html.append(f'<td class="track-{track_key}">')
+                    for line_text in lines:
+                        html.append(f'<p class="line" data-trans-id="trans_{trans_id}">{line_text}</p>')
+                        trans_id += 1
+                    html.append('</td>')
+                    
                 html.append('</tr>')
-                trans_id += 1
+            else:
+                # V1 Legacy Schema Fallback
+                for line in block:
+                    html.append('<tr>')
+                    
+                    text_it = line.get("text", "")
+                    html.append(f'<td class="track-it"><p class="line" data-trans-id="trans_{trans_id}">{text_it}</p></td>')
+                    
+                    text_ipa = line.get("ipa", "")
+                    html.append(f'<td class="track-ipa"><p class="line" data-trans-id="trans_{trans_id}">{text_ipa}</p></td>')
+                    
+                    text_en = line.get("longfellow", "")
+                    html.append(f'<td class="track-en"><p class="line" data-trans-id="trans_{trans_id}">{text_en}</p></td>')
+                    
+                    html.append('</tr>')
+                    trans_id += 1
 
         html.append("</table>")
+        
+        # Inject Media JS Bridge
+        import json
+        media_registry = {
+            "audio": getattr(self._book_ref, 'audio_clips', {}),
+            "video": getattr(self._book_ref, 'videos', {}),
+            "foot": getattr(self._book_ref, 'footnotes', {})
+        }
+        js_script = f"""
+        <script>
+        (function() {{
+            const media = {json.dumps(media_registry)};
+            window._dante_media = media;
+            
+            window.setAudioButtonState = function(id, isPlaying) {{
+                document.querySelectorAll('[data-audio-id]').forEach(el => {{
+                    const btnId = el.getAttribute('data-audio-id');
+                    if (!media.audio[btnId]) return;
+                    
+                    if (btnId === id && isPlaying) {{
+                        el.innerHTML = '<button class="media-btn">⏸ ' + media.audio[btnId].title + ' (Stop)</button>';
+                    }} else {{
+                        el.innerHTML = '<button class="media-btn">▶ ' + media.audio[btnId].title + '</button>';
+                    }}
+                }});
+            }};
+            
+            // Initial hydrate
+            window.setAudioButtonState(null, false);
+            
+            document.querySelectorAll('[data-video-id]').forEach(el => {{
+                const id = el.getAttribute('data-video-id');
+                if (media.video[id] && media.video[id].title) {{
+                    el.innerHTML = '<button class="media-btn">📺 ' + media.video[id].title + '</button>';
+                }}
+            }});
+            
+            document.addEventListener('click', e => {{
+                const audioDiv = e.target.closest('[data-audio-id]');
+                if (audioDiv) {{
+                    window.location.href = 'epub://action/media?type=audio&id=' + audioDiv.getAttribute('data-audio-id');
+                    return;
+                }}
+                
+                const videoDiv = e.target.closest('[data-video-id]');
+                if (videoDiv) {{
+                    window.location.href = 'epub://action/media?type=video&id=' + videoDiv.getAttribute('data-video-id');
+                    return;
+                }}
+                
+                const footLink = e.target.closest('[data-foot-id]');
+                if (footLink) {{
+                    window.location.href = 'epub://action/media?type=foot&id=' + footLink.getAttribute('data-foot-id');
+                    return;
+                }}
+            }});
+        }})();
+        </script>
+        """
+        html.append(js_script)
         html.append("</body>")
         html.append("</html>")
         
@@ -82,12 +166,25 @@ class DanteBook:
         self.chapters: list[DanteChapter] = []
         self._toc: list[tuple[str, int]] = []
         
+        # Global V2 registries
+        self.metadata = {}
+        self.footnotes = {}
+        self.images = {}
+        self.audio_clips = {}
+        self.videos = {}
+        
         self._load()
 
     def _load(self) -> None:
         with zipfile.ZipFile(self.path, 'r') as zf:
             with zf.open("content.json") as f:
                 data = json.load(f)
+                
+            self.metadata = data.get("metadata", {})
+            self.footnotes = data.get("footnotes", {})
+            self.images = data.get("images", {})
+            self.audio_clips = data.get("audio_clips", {})
+            self.videos = data.get("videos", {})
                 
             index = 0
             for b_idx, book in enumerate(data.get("books", [])):
@@ -130,9 +227,12 @@ class DanteBook:
         return None
 
     def get_asset(self, file_name: str) -> Optional[bytes]:
-        # DanteBook doesn't currently serve complex internal HTML assets besides the cover
-        if file_name == "cover.jpg":
-            return self.get_cover_image()
+        try:
+            with zipfile.ZipFile(self.path, 'r') as zf:
+                if file_name in zf.namelist():
+                    return zf.read(file_name)
+        except Exception:
+            pass
         return None
 
     def get_asset_type(self, file_name: str) -> str:

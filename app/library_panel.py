@@ -89,13 +89,21 @@ class LibraryPanel(QWidget):
         header.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         header.setStyleSheet("color: #c9a96e; background: transparent; padding: 4px;")
         
+        btn_refresh = QPushButton("↻")
+        btn_refresh.setFixedSize(28, 28)
+        btn_refresh.setStyleSheet("QPushButton { font-weight: bold; font-size: 18px; border: none; background: transparent; color: #e6e1d8; padding: 0px; margin: 0px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
+        btn_refresh.setToolTip("Refresh Library")
+        btn_refresh.clicked.connect(self.scan_library)
+
         btn_close = QPushButton("×")
         btn_close.setFixedSize(28, 28)
         btn_close.setStyleSheet("QPushButton { font-weight: bold; font-size: 18px; border: none; background: transparent; color: #e6e1d8; padding: 0px; margin: 0px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
+        btn_close.setToolTip("Close Library")
         btn_close.clicked.connect(self.close_requested.emit)
         
         header_layout.addWidget(header)
         header_layout.addStretch()
+        header_layout.addWidget(btn_refresh)
         header_layout.addWidget(btn_close)
         layout.addLayout(header_layout)
 
