@@ -15,8 +15,8 @@ from app.interfaces import BaseTTSEngine
 # Regex to match inline footnote markers like [137], [note], [*], etc.
 _FOOTNOTE_PATTERN = re.compile(r"\[\d+\]|\[\*+\]|\[note\]", re.IGNORECASE)
 
-# Simple sentence splitter (handles ., !, ? followed by space or end)
-_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
+# Simple sentence splitter (handles ., !, ? optionally followed by a closing quote, then space or end)
+_SENTENCE_SPLIT = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"'”’]))\s+")
 
 
 def strip_footnote_markers(text: str) -> str:
