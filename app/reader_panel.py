@@ -266,11 +266,7 @@ class ReaderPanel(QWidget):
                 is_checked = chk.isChecked()
                 css_lines.append(f".track-{key} {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
                 
-                # Backwards compatibility for V1 fallback classes
-                if key == "text": css_lines.append(f".track-it {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
-                if key == "ipa": css_lines.append(f".track-ipa {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
-                if key == "longfellow" or key == "longfoot": css_lines.append(f".track-{key} {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
-                if key == "ai_translation": css_lines.append(f".track-ai_translation {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
+
         else:
             show_orig = self._dynamic_checkboxes.get("original", type('obj', (object,), {'isChecked': lambda: True})).isChecked()
             show_trans = self._dynamic_checkboxes.get("translation", type('obj', (object,), {'isChecked': lambda: False})).isChecked()
@@ -359,7 +355,7 @@ class ReaderPanel(QWidget):
                         var p = document.querySelector('p[data-trans-id="' + id + '"]');
                         if (p) {{
                             var td = p.closest('td');
-                            if (td && (td.classList.contains('track-text') || td.classList.contains('track-it'))) {{
+                            if (td && td.classList.contains('track-text')) {{
                                 var tr = p.closest('tr');
                                 if (tr) {{
                                     var ai_td = tr.querySelector('td.track-ai_translation');
@@ -482,11 +478,7 @@ class ReaderPanel(QWidget):
             from app.config import get_max_width_px
             self._page_width = get_max_width_px()
             
-            tracks = getattr(book, 'metadata', {}).get('tracks', {
-                "text": {"label": "Original"},
-                "ipa": {"label": "IPA Pronunciation"},
-                "longfellow": {"label": "Translation"}
-            })
+            tracks = getattr(book, 'metadata', {}).get('tracks', {})
             
             # Ensure AI Translation track is always available as an option
             if "ai_translation" not in tracks:

@@ -3,15 +3,17 @@
     "tracks": {
       "text": {
         "label": "Italian (Original)",
-        "type": "text"
+        "type": "text",
+        "language": "it"
       },
       "ipa": {
         "label": "IPA Phonetics",
-        "type": "text"
+        "type": "pronunciation"
       },
       "longfellow": {
         "label": "English (Longfellow)",
-        "type": "text"
+        "type": "translation",
+        "language": "en"
       }
     }
   },

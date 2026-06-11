@@ -7,8 +7,8 @@ import re
 
 class TranslationWorker(QThread):
     """Background worker to translate a single chapter via LLM."""
-    translation_done = pyqtSignal(int, dict)  # chapter_index, translations_dict
-    translation_error = pyqtSignal(int, str)  # chapter_index, error_msg
+    translation_done = pyqtSignal(int, dict, str)  # chapter_index, translations_dict, target_lang
+    translation_error = pyqtSignal(int, str, str)  # chapter_index, error_msg, target_lang
 
     def __init__(self, chapter_index: int, blocks: list[dict], target_lang: str, backend, model_name: str):
         super().__init__()
@@ -21,7 +21,7 @@ class TranslationWorker(QThread):
     def run(self):
         try:
             if not self.blocks:
-                self.translation_done.emit(self.chapter_index, {})
+                self.translation_done.emit(self.chapter_index, {}, self.target_lang)
                 return
 
             # Extract just the html strings for the prompt, stripping <br> tags
@@ -66,10 +66,10 @@ Input blocks:
                     
                 translations[block["id"]] = text
                 
-            self.translation_done.emit(self.chapter_index, translations)
+            self.translation_done.emit(self.chapter_index, translations, self.target_lang)
 
         except Exception as e:
-            self.translation_error.emit(self.chapter_index, str(e))
+            self.translation_error.emit(self.chapter_index, str(e), self.target_lang)
 
 
 class TranslationManager(QObject):
@@ -80,24 +80,39 @@ class TranslationManager(QObject):
     def __init__(self, book_path: str, target_lang: str, backend, model_name: str):
         super().__init__()
         self.book_path = book_path
-        self.target_lang = target_lang
         self.backend = backend
         self.model_name = model_name
         
         # Determine save path
-        app_data = os.path.join(os.path.expanduser("~"), ".dante-reader", "translations")
-        os.makedirs(app_data, exist_ok=True)
+        self._app_data = os.path.join(os.path.expanduser("~"), ".dante-reader", "translations")
+        os.makedirs(self._app_data, exist_ok=True)
         
         # Hash book path to get unique id
-        book_hash = hashlib.md5(book_path.encode('utf-8')).hexdigest()
-        lang_safe = "".join(c for c in target_lang if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_").lower()
-        self.save_path = os.path.join(app_data, f"{book_hash}_{lang_safe}.json")
+        self._book_hash = hashlib.md5(book_path.encode('utf-8')).hexdigest()
         
         self.translations = {}  # { chapter_index: { "trans_0": "text" } }
-        self._load()
+        
+        self._target_lang = None
+        self.target_lang = target_lang
         
         self._workers = []  # Keep references to running threads
         self._translating_chapters = set()
+
+    @property
+    def target_lang(self) -> str:
+        return self._target_lang
+
+    @target_lang.setter
+    def target_lang(self, lang: str):
+        if self._target_lang == lang:
+            return
+            
+        self._target_lang = lang
+        lang_safe = "".join(c for c in lang if c.isalnum() or c in (" ", "-", "_")).strip().replace(" ", "_").lower()
+        self.save_path = os.path.join(self._app_data, f"{self._book_hash}_{lang_safe}.json")
+        
+        self.translations.clear()
+        self._load()
 
     def _load(self):
         if os.path.exists(self.save_path):
@@ -142,7 +157,11 @@ class TranslationManager(QObject):
         worker.finished.connect(lambda w=worker: self._workers.remove(w) if w in self._workers else None)
         worker.start()
 
-    def _on_translation_done(self, index: int, trans_dict: dict):
+    def _on_translation_done(self, index: int, trans_dict: dict, lang: str):
+        if lang != self.target_lang:
+            print(f"[Translation] Ignoring completed translation for {lang} (current lang is {self.target_lang})")
+            return
+            
         if index in self._translating_chapters:
             self._translating_chapters.remove(index)
             
@@ -152,7 +171,10 @@ class TranslationManager(QObject):
         self._save()
         self.chapter_translated.emit(index)
 
-    def _on_translation_error(self, index: int, error: str):
+    def _on_translation_error(self, index: int, error: str, lang: str):
+        if lang != self.target_lang:
+            return
+            
         if index in self._translating_chapters:
             self._translating_chapters.remove(index)
         print(f"[Translation] Error translating chapter {index}: {error}")

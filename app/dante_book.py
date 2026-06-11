@@ -47,44 +47,25 @@ class DanteChapter:
             # We add a spacer row between blocks/stanzas
             html.append('<tr class="stanza-row"><td colspan="3" style="height: 1.5em;"></td></tr>')
             
-            if isinstance(block, dict) and "tracks" in block:
-                # V2 Schema
-                block_id = block.get("id", f"block_{trans_id}")
-                html.append(f'<tr class="block-row" id="{block_id}">')
-                tracks = block.get("tracks", {})
+            # V2 Schema
+            block_id = block.get("id", f"block_{trans_id}")
+            html.append(f'<tr class="block-row" id="{block_id}">')
+            tracks = block.get("tracks", {})
+            
+            # Fetch metadata tracks from book to maintain order if possible
+            book_metadata = getattr(self._book_ref, 'metadata', {})
+            track_defs = book_metadata.get('tracks', {})
+            
+            for track_key in track_defs.keys():
+                lines = tracks.get(track_key, [])
                 
-                # Fetch metadata tracks from book to maintain order if possible
-                book_metadata = getattr(self._book_ref, 'metadata', {})
-                track_defs = book_metadata.get('tracks', {
-                    "text": {}, "ipa": {}, "longfellow": {}
-                })
-                
-                for track_key in track_defs.keys():
-                    lines = tracks.get(track_key, [])
-                    
-                    html.append(f'<td class="track-{track_key}">')
-                    for line_text in lines:
-                        html.append(f'<p class="line" data-trans-id="trans_{trans_id}">{line_text}</p>')
-                        trans_id += 1
-                    html.append('</td>')
-                    
-                html.append('</tr>')
-            else:
-                # V1 Legacy Schema Fallback
-                for line in block:
-                    html.append('<tr>')
-                    
-                    text_it = line.get("text", "")
-                    html.append(f'<td class="track-it"><p class="line" data-trans-id="trans_{trans_id}">{text_it}</p></td>')
-                    
-                    text_ipa = line.get("ipa", "")
-                    html.append(f'<td class="track-ipa"><p class="line" data-trans-id="trans_{trans_id}">{text_ipa}</p></td>')
-                    
-                    text_en = line.get("longfellow", "")
-                    html.append(f'<td class="track-en"><p class="line" data-trans-id="trans_{trans_id}">{text_en}</p></td>')
-                    
-                    html.append('</tr>')
+                html.append(f'<td class="track-{track_key}">')
+                for line_text in lines:
+                    html.append(f'<p class="line" data-trans-id="trans_{trans_id}">{line_text}</p>')
                     trans_id += 1
+                html.append('</td>')
+                
+            html.append('</tr>')
 
         html.append("</table>")
         

@@ -86,7 +86,7 @@ def extract_translation_blocks(html: str) -> list[dict]:
         elif tag.parent and tag.parent.name == 'td':
             # Dante format: tag is <p data-trans-id="..."> directly inside a td
             parent_classes = tag.parent.get('class', [])
-            if 'track-text' in parent_classes or 'track-it' in parent_classes:
+            if 'track-text' in parent_classes:
                 inner_html = "".join(str(c) for c in tag.contents).strip()
                 if inner_html:
                     blocks.append({

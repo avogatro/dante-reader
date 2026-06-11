@@ -3,15 +3,18 @@
     "tracks": {
       "text": {
         "label": "Italian (Original)",
-        "type": "text"
+        "type": "text",
+        "language": "it"
       },
-      "longfellow": {
-        "label": "English (Longfellow)",
-        "type": "text"
+      "longfoot": {
+        "label": "English (longfoot)",
+        "type": "translation",
+        "language": "en"
       },
       "mandelbaum": {
         "label": "English (Mandelbaum)",
-        "type": "text"
+        "type": "translation",
+        "language": "en"
       }
     }
   },
@@ -58,7 +61,7 @@
                   "ché la diritta via era smarrita.",
                   "<div data-audio-id='audio-1'></div>"
                 ],
-                "longfellow": [
+                "longfoot": [
                   "Midway upon the <a data-foot-id='foot-2'>journey</a> of our life",
                   "I found myself <a data-foot-id='foot-3'>within</a> a forest dark,",
                   "For the straightforward pathway had been lost.",
