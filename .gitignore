@@ -16,6 +16,5 @@ e-book/pdf/*.pdf
 scratch/
 speakers_json/*
 audio-book/*
-voice/*
 e-book/e-pub/thy-neighbors-wife.epub
 app/user_prefs.json
