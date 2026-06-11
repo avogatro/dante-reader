@@ -215,7 +215,7 @@ class ReaderPanel(QWidget):
         
         self._dynamic_checkboxes = {}
         
-        self._btn_translate_page = QPushButton("Translate Page")
+        self._btn_translate_page = QPushButton("AI: Translate Page")
         self._btn_translate_page.clicked.connect(self._translate_visible_page)
         self._table_nav_bar.addWidget(self._btn_translate_page)
         
@@ -223,7 +223,7 @@ class ReaderPanel(QWidget):
         
         self._table_nav_bar.addWidget(QLabel("TTS:"))
         self._table_tts_combo = QComboBox()
-        self._table_tts_combo.addItems(["Original", "Translation"])
+        self._table_tts_combo.addItems(["Original", "AI Translation"])
         self._table_nav_bar.addWidget(self._table_tts_combo)
         
         self._table_controls_widget = QWidget()
@@ -269,7 +269,8 @@ class ReaderPanel(QWidget):
                 # Backwards compatibility for V1 fallback classes
                 if key == "text": css_lines.append(f".track-it {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
                 if key == "ipa": css_lines.append(f".track-ipa {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
-                if key == "longfellow": css_lines.append(f".track-en {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
+                if key == "longfellow" or key == "longfoot": css_lines.append(f".track-{key} {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
+                if key == "ai_translation": css_lines.append(f".track-ai_translation {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
         else:
             show_orig = self._dynamic_checkboxes.get("original", type('obj', (object,), {'isChecked': lambda: True})).isChecked()
             show_trans = self._dynamic_checkboxes.get("translation", type('obj', (object,), {'isChecked': lambda: False})).isChecked()
@@ -295,13 +296,14 @@ class ReaderPanel(QWidget):
         self._page.runJavaScript(js)
 
     def _translate_visible_page(self):
-        trans_chk = self._dynamic_checkboxes.get("translation")
+        # Determine which checkbox to toggle based on book type
+        trans_chk = self._dynamic_checkboxes.get("ai_translation" if getattr(self._book, 'is_dante', False) else "translation")
         if trans_chk and not trans_chk.isChecked():
             trans_chk.setChecked(True)
             
         js = """
         (function() {
-            var rows = document.querySelectorAll('.translation-row');
+            var rows = document.querySelectorAll('[data-trans-id]');
             var visibleIds = [];
             
             // Get viewport height with a 50% buffer above and below
@@ -340,26 +342,55 @@ class ReaderPanel(QWidget):
 
     def _on_chapter_translated(self, index: int):
         if hasattr(self, "_btn_translate_page"):
-            self._btn_translate_page.setText("🌍 Translate Page")
+            self._btn_translate_page.setText("AI: Translate Page")
             self._btn_translate_page.setEnabled(True)
         if index == self._current_chapter and self._translation_manager:
             translations = self._translation_manager.get_chapter(index)
             import json
+            is_dante = getattr(self._book, 'is_dante', False)
             js = f"""
             (function() {{
                 var trans = {json.dumps(translations)};
                 var parser = new DOMParser();
+                var isDante = {str(is_dante).lower()};
+                
                 for (var id in trans) {{
-                    var el = document.querySelector('[data-trans-id="' + id + '"] .track-translation');
-                    if (el) {{
-                        try {{
-                            el.innerHTML = trans[id];
-                        }} catch (e) {{
-                            var doc = parser.parseFromString(trans[id], 'text/html');
-                            el.innerHTML = '';
-                            Array.from(doc.body.childNodes).forEach(node => {{
-                                el.appendChild(document.importNode(node, true));
-                            }});
+                    if (isDante) {{
+                        var p = document.querySelector('p[data-trans-id="' + id + '"]');
+                        if (p) {{
+                            var td = p.closest('td');
+                            if (td && (td.classList.contains('track-text') || td.classList.contains('track-it'))) {{
+                                var tr = p.closest('tr');
+                                if (tr) {{
+                                    var ai_td = tr.querySelector('td.track-ai_translation');
+                                    if (!ai_td) {{
+                                        ai_td = document.createElement('td');
+                                        ai_td.className = 'track-ai_translation';
+                                        tr.appendChild(ai_td);
+                                    }}
+                                    var ai_p = ai_td.querySelector('p[data-trans-id="' + id + '_ai"]');
+                                    if (!ai_p) {{
+                                        ai_p = document.createElement('p');
+                                        ai_p.className = 'line';
+                                        ai_p.setAttribute('data-trans-id', id + '_ai');
+                                        ai_td.appendChild(ai_p);
+                                    }}
+                                    ai_p.innerHTML = trans[id];
+                                }}
+                            }}
+                        }}
+                    }} else {{
+                        var el = document.querySelector('[data-trans-id="' + id + '"] .track-translation');
+                        if (el) {{
+                            try {{
+                                el.innerHTML = trans[id];
+                            }} catch (e) {{
+                                var doc = parser.parseFromString(trans[id], 'text/html');
+                                el.innerHTML = '';
+                                Array.from(doc.body.childNodes).forEach(node => {{
+                                    el.appendChild(document.importNode(node, true));
+                                }});
+                            }}
                         }}
                     }}
                 }}
@@ -457,9 +488,14 @@ class ReaderPanel(QWidget):
                 "longfellow": {"label": "Translation"}
             })
             
+            # Ensure AI Translation track is always available as an option
+            if "ai_translation" not in tracks:
+                tracks["ai_translation"] = {"label": "AI Translation"}
+            
             for key, val in tracks.items():
                 chk = QCheckBox(val.get("label", key))
-                chk.setChecked(key != "ipa")
+                # Initially uncheck IPA and AI Translation
+                chk.setChecked(key not in ["ipa", "ai_translation"])
                 chk.stateChanged.connect(self._update_table_layout)
                 self._track_toggles_layout.addWidget(chk)
                 self._dynamic_checkboxes[key] = chk
@@ -477,7 +513,7 @@ class ReaderPanel(QWidget):
             self._chk_col_original.stateChanged.connect(self._update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_original)
             
-            self._chk_col_translation = QCheckBox("Translation")
+            self._chk_col_translation = QCheckBox("AI Translation")
             self._chk_col_translation.setChecked(False)
             self._chk_col_translation.stateChanged.connect(self._update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_translation)
@@ -487,7 +523,7 @@ class ReaderPanel(QWidget):
             
             self._table_tts_combo.blockSignals(True)
             self._table_tts_combo.clear()
-            self._table_tts_combo.addItems(["Original", "Translation"])
+            self._table_tts_combo.addItems(["Original", "AI Translation"])
             self._table_tts_combo.setCurrentText("Original")
             self._table_tts_combo.blockSignals(False)
                 
@@ -595,15 +631,16 @@ class ReaderPanel(QWidget):
         html = self._inject_next_button(html)
         self._last_rendered_html = xml_decl + html
         
-        # Unconditionally inject translation rows if it's not a Dante book.
+        # Inject translation IDs for EPUBs
         if not getattr(self._book, 'is_dante', False):
-            from app.translation_parser import inject_translation_ids, inject_translated_text
+            from app.translation_parser import inject_translation_ids
             html = inject_translation_ids(html)
             
-            # If we already have translations for this chapter, inject them right away
-            if self._translation_manager and self._translation_manager.has_chapter(self._current_chapter):
-                trans_dict = self._translation_manager.get_chapter(self._current_chapter)
-                html = inject_translated_text(html, trans_dict)
+        # If we already have translations for this chapter, inject them right away (for both EPUB and Dante)
+        if self._translation_manager and self._translation_manager.has_chapter(self._current_chapter):
+            from app.translation_parser import inject_translated_text
+            trans_dict = self._translation_manager.get_chapter(self._current_chapter)
+            html = inject_translated_text(html, trans_dict)
                 
         # Fix SVG attribute casing AFTER all BeautifulSoup manipulations have finished!
         html = re.sub(r'\bviewbox\s*=', 'viewBox=', html, flags=re.IGNORECASE)

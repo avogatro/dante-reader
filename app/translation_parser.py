@@ -76,12 +76,23 @@ def extract_translation_blocks(html: str) -> list[dict]:
     for tag in soup.find_all(attrs={'data-trans-id': True}):
         orig = tag.find(class_='track-original')
         if orig:
+            # Regular EPUB format
             inner_html = "".join(str(c) for c in orig.contents).strip()
             if inner_html:
                 blocks.append({
                     "id": tag['data-trans-id'],
                     "html": inner_html
                 })
+        elif tag.parent and tag.parent.name == 'td':
+            # Dante format: tag is <p data-trans-id="..."> directly inside a td
+            parent_classes = tag.parent.get('class', [])
+            if 'track-text' in parent_classes or 'track-it' in parent_classes:
+                inner_html = "".join(str(c) for c in tag.contents).strip()
+                if inner_html:
+                    blocks.append({
+                        "id": tag['data-trans-id'],
+                        "html": inner_html
+                    })
     return blocks
 
 def inject_translated_text(html: str, translations: dict[str, str]) -> str:
@@ -92,8 +103,25 @@ def inject_translated_text(html: str, translations: dict[str, str]) -> str:
         if tid in translations:
             trans_container = tag.find(class_='track-translation')
             if trans_container:
+                # Regular EPUB format
                 trans_html = translations[tid]
                 trans_container.clear()
                 trans_container.append(BeautifulSoup(trans_html, 'html.parser'))
+            elif tag.parent and tag.parent.name == 'td':
+                # Dante format
+                tr = tag.find_parent('tr')
+                if tr:
+                    ai_td = tr.find('td', class_='track-ai_translation')
+                    if not ai_td:
+                        ai_td = soup.new_tag('td', attrs={'class': 'track-ai_translation'})
+                        tr.append(ai_td)
+                    
+                    existing_p = ai_td.find('p', attrs={'data-trans-id': f"{tid}_ai"})
+                    if not existing_p:
+                        existing_p = soup.new_tag('p', attrs={'class': 'line', 'data-trans-id': f"{tid}_ai"})
+                        ai_td.append(existing_p)
+                    
+                    existing_p.clear()
+                    existing_p.append(BeautifulSoup(translations[tid], 'html.parser'))
     
     return str(soup)
