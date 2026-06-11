@@ -201,3 +201,35 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
 > **Blocking Batch Generation vs UI Synchronization**
 > **Symptom:** When swapping from a streaming engine (`Qwen`) to a batch engine (`OmniVoice`), the UI would highlight sentences *before* the audio actually played, and insert massive silences between sentences.
 > **Solution:** You cannot tie UI highlights to the start of a blocking TTS generation call. We split the engine: one thread purely generates and pushes to a `queue.Queue`, and a second thread waits on that queue to instantly trigger the UI highlight exactly as the numpy audio chunk is passed to the sound card.
+
+### ?? Phase 7 Achievements
+
+1. **Global Full-Text Search Engine**
+   - Engineered an asynchronous SearchWorker and a highly responsive SearchPanel to instantly search phrases across all chapters of the loaded EPUB/PDF.
+   - Decoupled the search logic into a background QThread to guarantee 60FPS UI fluidity even when regex-parsing hundreds of chapters.
+
+2. **Detached DOM Text Extraction (Newline Preservation)**
+   - Fixed a critical TTS tokenization bug where extracting 	extContent from a detached DOM clone squashed block elements together (e.g. <p>) without spaces, breaking the Python sentence tokenizer.
+   - Manually injected literal \n nodes into p, div, and r elements inside the clone before extraction to perfectly simulate native innerText behavior on detached nodes.
+
+3. **Multi-Track Restricted DOM Highlighting**
+   - Re-engineered the JavaScript TTS highlighting bridge. The standard window.find() API searches globally and was incorrectly highlighting original text tracks when the user was listening to the AI translation track.
+   - Implemented a robust fallback loop that iterates over matches, aggressively verifying that the nchorNode resides within the exact 	argetClass (e.g. .track-translation) before locking in the highlight.
+
+4. **DOM-Pure Highlight Unwrapping**
+   - Discovered that "clearing" highlights by setting el.style.backgroundColor = 'transparent' was causing massive DOM pollution. These hidden spans were overriding new gba(...) spans wrapping around them, completely hiding future highlights from the user.
+   - Replaced the CSS hack with a true DOM unwrap algorithm (parent.insertBefore(el.firstChild, el)) that cleanly physically removes the span elements without destroying the underlying text nodes.
+
+### ?? Phase 7 Lessons Learned
+
+> [!CAUTION]
+> **The document.execCommand Transparent Span Bug**
+> **Symptom:** AI Translation TTS audio played perfectly, but highlights completely disappeared from the screen on sentences that had previously been highlighted.
+> **Diagnosis:** When a new highlight is applied over text containing a <span style="background-color: transparent">, the browser wraps the whole block in a new color span, but the inner 	ransparent span overrides it, making the text invisible to the highlight.
+> **Lesson:** Never clear highlights by setting them to 	ransparent. Always structurally unwrap and remove the formatting elements from the DOM entirely to prevent invisible styling collisions.
+
+> [!TIP]
+> **innerText vs 	extContent on Detached Nodes**
+> **Symptom:** clone.innerText failed to extract block-level newlines, returning a giant run-on string without spaces.
+> **Diagnosis:** Browser APIs rely on the active CSS layout engine to determine block spacing for innerText. If a node is cloned and *not* attached to the active document body, it has no layout, causing innerText to degrade into basic 	extContent (stripping all block spacing).
+> **Lesson:** When extracting formatted text from a detached DOM clone, manually append a text node containing \n to all block-level elements (p, div, li) and replace <br> tags *before* calling 	extContent.

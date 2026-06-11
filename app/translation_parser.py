@@ -111,9 +111,9 @@ def inject_translated_text(html: str, translations: dict[str, str]) -> str:
                 # Dante format
                 tr = tag.find_parent('tr')
                 if tr:
-                    ai_td = tr.find('td', class_='track-ai_translation')
+                    ai_td = tr.find('td', class_='track-translation')
                     if not ai_td:
-                        ai_td = soup.new_tag('td', attrs={'class': 'track-ai_translation'})
+                        ai_td = soup.new_tag('td', attrs={'class': 'track-translation'})
                         tr.append(ai_td)
                     
                     existing_p = ai_td.find('p', attrs={'data-trans-id': f"{tid}_ai"})

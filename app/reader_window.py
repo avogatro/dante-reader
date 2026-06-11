@@ -149,15 +149,19 @@ class ReaderWindow(QMainWindow):
 
         # ── Panels ──
         from .footnotes_panel import FootnotesPanel
+        from .search_panel import SearchPanel
+        
         self._library = LibraryPanel(self)
         self._reader = ReaderPanel(self._scheme_handler, self)
         self._ai = AiPanel(api_key=load_api_key(), parent=self)
         self._footnotes_panel = FootnotesPanel(self)
+        self._search_panel = SearchPanel(self)
 
-        # ── Right Sidebar (AI Companion) ──
+        # ── Right Sidebar (AI Companion / Search) ──
         self._right_tabs = QTabWidget()
         self._right_tabs.addTab(self._ai, "🤖 AI Companion")
         self._right_tabs.addTab(self._footnotes_panel, "📝 Footnotes")
+        self._right_tabs.addTab(self._search_panel, "🔍 Search")
         self._right_tabs.setMinimumWidth(320)
         
         # Add a right-aligned close button to the tab bar
@@ -445,6 +449,10 @@ class ReaderWindow(QMainWindow):
         self._reader.library_toggle_requested.connect(self._toggle_library)
         self._reader.ai_toggle_requested.connect(self._toggle_sidebar)
         self._reader.focus_toggle_requested.connect(self._toggle_focus_mode)
+        self._reader.search_requested.connect(self._on_search_requested)
+        
+        # Search panel
+        self._search_panel.result_selected.connect(self._on_search_result_selected)
 
         # AI panel
         self._ai.close_requested.connect(self._toggle_sidebar)
@@ -577,6 +585,41 @@ class ReaderWindow(QMainWindow):
             self._animate_widget_width(self._right_tabs, current, target)
         self._right_tabs.setCurrentWidget(self._footnotes_panel)
         self._footnotes_panel.scroll_to_footnote(foot_id)
+
+    def _on_search_requested(self, query: str) -> None:
+        if not self._current_book:
+            return
+            
+        # Open the search panel
+        target = 320
+        current = self._right_tabs.width() if self._right_tabs.isVisible() else 0
+        if not self._right_tabs.isVisible() or self._right_tabs.maximumWidth() == 0:
+            self._animate_widget_width(self._right_tabs, current, target)
+            
+        self._right_tabs.setCurrentWidget(self._search_panel)
+        self._search_panel.show_loading(query)
+        
+        from .search_worker import SearchWorker
+        self._search_worker = SearchWorker(self._current_book, query, self)
+        self._search_worker.finished.connect(lambda results, q=query: self._search_panel.load_results(results, q))
+        self._search_worker.error.connect(self._search_panel.show_error)
+        self._search_worker.start()
+
+    def _on_search_result_selected(self, chapter_idx: int, query: str) -> None:
+        if not self._current_book:
+            return
+            
+        # Load the chapter
+        self._reader._load_chapter(chapter_idx)
+        
+        # We need a slight delay to allow the QWebEngineView to render the HTML before searching
+        from PyQt6.QtCore import QTimer
+        
+        # Focus WebEngine and clear previous search
+        self._reader._page.findText("")
+        
+        # Find the text in the rendered page
+        QTimer.singleShot(150, lambda: self._reader._page.findText(query))
 
     def _on_dictionary_lookup_requested(self, word: str) -> None:
         """Handle double-click word lookup requests."""

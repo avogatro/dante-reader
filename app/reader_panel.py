@@ -25,6 +25,7 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QPlainTextEdit,
     QMessageBox,
+    QLineEdit,
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import (
@@ -110,8 +111,9 @@ class ReaderPanel(QWidget):
     library_toggle_requested = pyqtSignal()
     ai_toggle_requested = pyqtSignal()
     focus_toggle_requested = pyqtSignal()
+    search_requested = pyqtSignal(str)
     
-    # AI Signals
+    # Text selection signals
     ai_explain_requested = pyqtSignal()
     ai_translate_requested = pyqtSignal()
     
@@ -168,12 +170,6 @@ class ReaderPanel(QWidget):
         nav_bar.addWidget(self._btn_toggle_lib)
 
         nav_bar.addSpacing(10)
-
-        self._chapter_combo = QComboBox()
-        self._chapter_combo.setMinimumWidth(250)
-        self._chapter_combo.currentIndexChanged.connect(self._on_chapter_selected)
-        nav_bar.addWidget(self._chapter_combo, 1)
-
         self._btn_prev = QPushButton("◀ Prev")
         self._btn_prev.setFixedWidth(80)
         self._btn_prev.clicked.connect(self._prev_chapter)
@@ -188,8 +184,20 @@ class ReaderPanel(QWidget):
         self._chapter_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
         nav_bar.addWidget(self._chapter_label)
 
-        nav_bar.addStretch()
+        self._chapter_combo = QComboBox()
+        self._chapter_combo.setMinimumWidth(250)
+        self._chapter_combo.setMaximumWidth(500)
+        self._chapter_combo.currentIndexChanged.connect(self._on_chapter_selected)
+        nav_bar.addWidget(self._chapter_combo, 1)
 
+        self._search_input = QLineEdit()
+        self._search_input.setPlaceholderText("Search book...")
+        self._search_input.setMinimumWidth(250)
+        self._search_input.returnPressed.connect(
+            lambda: self.search_requested.emit(self._search_input.text().strip()) if self._search_input.text().strip() else None
+        )
+        nav_bar.addWidget(self._search_input,1)
+        nav_bar.addStretch()
         self._btn_toggle_ai = QPushButton("✨ AI")
         self._btn_toggle_ai.clicked.connect(self.ai_toggle_requested.emit)
         nav_bar.addWidget(self._btn_toggle_ai)
@@ -273,6 +281,9 @@ class ReaderPanel(QWidget):
             show_trans = self._dynamic_checkboxes.get("translation", type('obj', (object,), {'isChecked': lambda: False})).isChecked()
             css_lines.append(f".track-original {{ display: {'block' if show_orig else 'none'} !important; flex: 1; padding: {'0 15px' if show_orig else '0'} !important; }}")
             css_lines.append(f".track-translation {{ display: {'block' if show_trans else 'none'} !important; flex: 1; padding: {'0 15px' if show_trans else '0'} !important; }}")
+        
+        # Ensure AI translation text is always selectable/highlightable by TTS
+        # css_lines.append(".track-ai_translation, .track-ai_translation * { user-select: text !important; pointer-events: auto !important; }")
         
         return " ".join(css_lines)
 
@@ -359,10 +370,10 @@ class ReaderPanel(QWidget):
                             if (td && td.classList.contains('track-text')) {{
                                 var tr = p.closest('tr');
                                 if (tr) {{
-                                    var ai_td = tr.querySelector('td.track-ai_translation');
+                                    var ai_td = tr.querySelector('td.track-translation');
                                     if (!ai_td) {{
                                         ai_td = document.createElement('td');
-                                        ai_td.className = 'track-ai_translation';
+                                        ai_td.className = 'track-translation';
                                         tr.appendChild(ai_td);
                                     }}
                                     var ai_p = ai_td.querySelector('p[data-trans-id="' + id + '_ai"]');
@@ -444,6 +455,7 @@ class ReaderPanel(QWidget):
             self._btn_next.hide()
             self._chapter_combo.hide()
             self._chapter_label.hide()
+            self._search_input.hide()
             
             import urllib.parse
             # URL encode the local absolute path so it survives the ?file= query parameter
@@ -465,6 +477,7 @@ class ReaderPanel(QWidget):
         self._btn_next.show()
         self._chapter_combo.show()
         self._chapter_label.show()
+        self._search_input.show()
         
         # Clear existing track toggles
         for i in reversed(range(self._track_toggles_layout.count())): 
@@ -482,8 +495,8 @@ class ReaderPanel(QWidget):
             tracks = getattr(book, 'metadata', {}).get('tracks', {})
             
             # Ensure AI Translation track is always available as an option
-            if "ai_translation" not in tracks:
-                tracks["ai_translation"] = {"label": "AI Translation", "type": "translation"}
+            if "translation" not in tracks:
+                tracks["translation"] = {"label": "AI Translation", "type": "translation"}
             
             for key, val in tracks.items():
                 chk = QCheckBox(val.get("label", key))
@@ -617,6 +630,7 @@ class ReaderPanel(QWidget):
         html = self._inject_dark_css(html)
         html = self._inject_reading_style(html)
         html = self._inject_dictionary_js(html)
+        html = self._inject_image_zoom_js(html)
         
         # Inject the active table layout directly into the HTML so it takes effect instantly
         layout_css = f"<style id='table-column-toggles'>{self._get_table_layout_css()}</style>"
@@ -752,6 +766,49 @@ class ReaderPanel(QWidget):
         </script>
         """
         return self._inject_head_content(html, js)
+
+    def _inject_image_zoom_js(self, html: str) -> str:
+        """Inject JS to handle zooming images to max size when clicked."""
+        js_script = """
+        <script>
+        (function() {
+            document.addEventListener('click', function(e) {
+                if (e.target.tagName.toLowerCase() === 'img') {
+                    // Check if already zoomed
+                    if (e.target.dataset.zoomed === 'true') {
+                        e.target.dataset.zoomed = 'false';
+                        e.target.style.position = '';
+                        e.target.style.top = '';
+                        e.target.style.left = '';
+                        e.target.style.width = '';
+                        e.target.style.height = '';
+                        e.target.style.maxWidth = '';
+                        e.target.style.maxHeight = '';
+                        e.target.style.zIndex = '';
+                        e.target.style.cursor = 'zoom-in';
+                        e.target.style.backgroundColor = '';
+                        e.target.style.objectFit = '';
+                    } else {
+                        // Zoom in
+                        e.target.dataset.zoomed = 'true';
+                        e.target.style.position = 'fixed';
+                        e.target.style.top = '0';
+                        e.target.style.left = '0';
+                        e.target.style.width = '100vw';
+                        e.target.style.height = '100vh';
+                        e.target.style.maxWidth = '100vw';
+                        e.target.style.maxHeight = '100vh';
+                        e.target.style.zIndex = '9999';
+                        e.target.style.cursor = 'zoom-out';
+                        e.target.style.backgroundColor = 'rgba(0,0,0,0.85)';
+                        e.target.style.objectFit = 'contain';
+                    }
+                }
+            });
+        })();
+        </script>
+        """
+        return self._inject_head_content(html, js_script)
 
     def _update_nav_state(self) -> None:
         """Update navigation buttons and label."""
@@ -1122,7 +1179,13 @@ class ReaderPanel(QWidget):
                     var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup');
                     elementsToRemove.forEach(function(el) {{ el.remove(); }});
                     
-                    var text = clone.innerText || clone.textContent;
+                    // Add newlines to block elements so textContent doesn't crush lines together
+                    var blocks = clone.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li');
+                    blocks.forEach(function(el) {{ el.appendChild(document.createTextNode('\\n')); }});
+                    var brs = clone.querySelectorAll('br');
+                    brs.forEach(function(el) {{ el.replaceWith('\\n'); }});
+                    
+                    var text = clone.textContent;
                     if (text && text.trim().length > 0) {{
                         textPieces.push(text.trim());
                     }}
@@ -1139,7 +1202,13 @@ class ReaderPanel(QWidget):
                 var clone = document.body.cloneNode(true);
                 var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup');
                 elementsToRemove.forEach(function(el) {{ el.remove(); }});
-                return clone.innerText || clone.textContent;
+                
+                var blocks = clone.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li');
+                blocks.forEach(function(el) {{ el.appendChild(document.createTextNode('\\n')); }});
+                var brs = clone.querySelectorAll('br');
+                brs.forEach(function(el) {{ el.replaceWith('\\n'); }});
+                
+                return clone.textContent;
             }}
         }})()
         """
@@ -1153,16 +1222,35 @@ class ReaderPanel(QWidget):
         import json
         safe_text = json.dumps(text) if text else "''"
         
+        target_key = self._table_tts_combo.currentData()
+        target_class = ""
+        if target_key:
+            target_class = f".track-{target_key}"
+        else:
+            # Standard EPUB mode
+            target = self._table_tts_combo.currentText()
+            if target == "Original":
+                target_class = ".track-original"
+            elif target == "AI Translation":
+                target_class = ".track-translation"
+                
+        safe_target = json.dumps(target_class) if target_class else "''"
+       
         js = f"""
         (function() {{
-            // Clear previous hiliteColor spans
-            var spans = document.querySelectorAll('span[style*="background-color: rgba(201, 169, 110, 0.4)"]');
+            // Clear previous hiliteColor spans and any leftover transparent spans
+            var spans = document.querySelectorAll('span[style*="background-color: rgba(201, 169, 110, 0.4)"], span[style*="background-color: transparent"]');
             spans.forEach(el => {{
-                el.style.backgroundColor = 'transparent';
+                var parent = el.parentNode;
+                while (el.firstChild) {{
+                    parent.insertBefore(el.firstChild, el);
+                }}
+                parent.removeChild(el);
             }});
             
             if ({safe_text} === '') return;
             
+            var targetClass = {safe_target};
             var sel = window.getSelection();
             var originalRange = null;
             if (sel.rangeCount > 0) {{
@@ -1171,14 +1259,35 @@ class ReaderPanel(QWidget):
             
             sel.removeAllRanges();
             
-            // Search from top
-            // 1. Exact Match
-            var found = window.find({safe_text}, false, false, true, false, false, false);
+            var textsToTry = [{safe_text}, {safe_text}.replace(/\\s+/g, ' ').trim()];
+            var found = false;
             
-            // 2. Normalized spaces
-            if (!found) {{
-                var normText = {safe_text}.replace(/\\s+/g, ' ').trim();
-                found = window.find(normText, false, false, true, false, false, false);
+            for (var i = 0; i < textsToTry.length; i++) {{
+                var searchStr = textsToTry[i];
+                var iterations = 0;
+                
+                // Keep finding next match until we hit the right column
+                while (iterations < 50) {{
+                    var matched = window.find(searchStr, false, false, false, false, false, false);
+                    if (!matched) break; // Reached end of document
+                    
+                    if (targetClass) {{
+                        var node = window.getSelection().anchorNode;
+                        var container = node ? (node.nodeType === 3 ? node.parentElement : node) : null;
+                        if (container && container.closest(targetClass)) {{
+                            found = true;
+                            break;
+                        }}
+                    }} else {{
+                        found = true;
+                        break;
+                    }}
+                    iterations++;
+                }}
+                
+                if (found) break;
+                // If not found, clear selection to search from top again for the next variant
+                sel.removeAllRanges();
             }}
             
             if (found) {{
@@ -1199,8 +1308,6 @@ class ReaderPanel(QWidget):
                     }}
                 }}
                 // Collapse selection to the START of the sentence.
-                // This ensures if the user hits "Play" again, it restarts from here 
-                // instead of jumping to the end of the chapter.
                 sel.collapseToStart();
             }}
         }})()
