@@ -6,13 +6,12 @@
         "type": "text",
         "language": "it"
       },
-      "longfoot": {
-        "label": "English (longfoot)",
-        "type": "translation",
-        "language": "en"
+      "ipa": {
+        "label": "IPA Phonetics",
+        "type": "pronunciation"
       },
       "mandelbaum": {
-        "label": "English (Mandelbaum)",
+        "label": "English (mandelbaum)",
         "type": "translation",
         "language": "en"
       }
@@ -59,13 +58,13 @@
                   "Nel mezzo del <a data-foot-id='foot-1'>cammin</a> di nostra vita",
                   "mi ritrovai per una selva oscura,",
                   "ché la diritta via era smarrita.",
-                  "<div data-audio-id='audio-1'></div>"
-                ],
-                "longfoot": [
-                  "Midway upon the <a data-foot-id='foot-2'>journey</a> of our life",
-                  "I found myself <a data-foot-id='foot-3'>within</a> a forest dark,",
-                  "For the straightforward pathway had been lost.",
+                  "<div data-audio-id='audio-1'></div>",
                   "<div data-video-id='vid-1'></div>"
+                ],
+                "ipa": [
+                  "nel met͡so del kamːin di nostra vita",
+                  "mi ritrovai per una selva oʃura,",
+                  "ke la diritːa via era zmarːita."
                 ],
                 "mandelbaum": [
                   "<img data-image-id='img-1' src='epub://content/2282509936237913640_cover.jpg' />",

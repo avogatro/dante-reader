@@ -21,8 +21,8 @@ def inject_translation_ids(html: str) -> str:
             return
             
         wrapper = soup.new_tag('div', attrs={'class': 'translation-row', 'data-trans-id': f'trans_{trans_id}', 'style': 'display: flex; flex-direction: row; width: 100%; align-items: stretch; margin-bottom: 0.5em;'})
-        orig_container = soup.new_tag('div', attrs={'class': 'track-original track-it', 'style': 'flex: 1; min-width: 0;'})
-        trans_container = soup.new_tag('div', attrs={'class': 'track-translation track-en', 'style': 'flex: 1; min-width: 0;'})
+        orig_container = soup.new_tag('div', attrs={'class': 'track-original', 'style': 'flex: 1; min-width: 0;'})
+        trans_container = soup.new_tag('div', attrs={'class': 'track-translation', 'style': 'flex: 1; min-width: 0;'})
         
         tag.wrap(orig_container)
         orig_container.wrap(wrapper)

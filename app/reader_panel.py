@@ -482,12 +482,12 @@ class ReaderPanel(QWidget):
             
             # Ensure AI Translation track is always available as an option
             if "ai_translation" not in tracks:
-                tracks["ai_translation"] = {"label": "AI Translation"}
+                tracks["ai_translation"] = {"label": "AI Translation", "type": "translation"}
             
             for key, val in tracks.items():
                 chk = QCheckBox(val.get("label", key))
-                # Initially uncheck IPA and AI Translation
-                chk.setChecked(key not in ["ipa", "ai_translation"])
+                # Initially uncheck pronunciation tracks and the AI translation track
+                chk.setChecked(val.get("type") != "pronunciation" and key != "ai_translation")
                 chk.stateChanged.connect(self._update_table_layout)
                 self._track_toggles_layout.addWidget(chk)
                 self._dynamic_checkboxes[key] = chk
@@ -1049,14 +1049,12 @@ class ReaderPanel(QWidget):
         if target_key:
             target_selector = f".track-{target_key}"
         else:
-            # Fallback for V1
+            # Standard EPUB mode
             target = self._table_tts_combo.currentText()
             if target == "Original":
-                target_selector = ".track-original, .track-it"
-            elif target == "Translation":
-                target_selector = ".track-translation, .track-en"
-            elif target == "IPA Pronunciation":
-                target_selector = ".track-ipa"
+                target_selector = ".track-original"
+            else:
+                target_selector = ".track-translation"
         
         # JS to get text from selection/cursor to the end of the chapter.
         # If in Dante mode, it restricts extraction to the selected `target_selector`.
@@ -1073,7 +1071,7 @@ class ReaderPanel(QWidget):
                 var cells = Array.from(document.querySelectorAll(targetClass));
                 var startIndex = 0;
                 if (fromNode) {{
-                    var closestCell = fromNode.nodeType === 3 ? fromNode.parentElement.closest('td, .track-original, .track-translation, .track-ipa') : fromNode.closest('td, .track-original, .track-translation, .track-ipa');
+                    var closestCell = fromNode.nodeType === 3 ? fromNode.parentElement.closest('td, .track-original, .track-translation') : fromNode.closest('td, .track-original, .track-translation');
                     if (closestCell) {{
                         var tr = closestCell.closest('tr, .translation-row');
                         if (tr) {{
