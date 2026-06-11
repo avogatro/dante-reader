@@ -82,12 +82,6 @@ class AiPanel(QWidget):
         header_layout.addWidget(header_label)
         header_layout.addStretch()
 
-        btn_close = QPushButton("×")
-        btn_close.setFixedSize(28, 28)
-        btn_close.setStyleSheet("QPushButton { font-weight: bold; font-size: 18px; border: none; background: transparent; color: #e6e1d8; padding: 0px; margin: 0px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
-        btn_close.clicked.connect(self.close_requested.emit)
-        header_layout.addWidget(btn_close)
-
         layout.addLayout(header_layout)
 
         # ── Backend Selector ──

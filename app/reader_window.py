@@ -4,7 +4,7 @@ Three-column layout: Library | Reader | Footnote/AI sidebar.
 Includes menus for View, TTS, and AI controls.
 """
 
-from PyQt6.QtCore import Qt, QSize, QTimer
+from PyQt6.QtCore import Qt, QSize, QTimer, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QFont, QAction, QActionGroup
 from PyQt6.QtWidgets import (
     QMainWindow,
@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
     QLabel,
     QHBoxLayout,
     QMessageBox,
+    QPushButton,
 )
 
 from .library_panel import LibraryPanel
@@ -28,6 +29,32 @@ from .omnivoice_engine import OmniVoiceTTSEngine
 from .epub_loader import EpubBook
 from .url_scheme_handler import EpubSchemeHandler
 from .config import load_api_key, load_prefs, save_prefs
+
+
+class BookLoaderThread(QThread):
+    finished_loading = pyqtSignal(object, str)  # book_obj, path
+    error = pyqtSignal(str)
+
+    def __init__(self, path: str, is_dante: bool, use_pymupdf: bool, parent=None):
+        super().__init__(parent)
+        self.path = path
+        self.is_dante = is_dante
+        self.use_pymupdf = use_pymupdf
+
+    def run(self):
+        try:
+            if self.is_dante:
+                from app.dante_book import DanteBook
+                book = DanteBook(self.path)
+            elif self.use_pymupdf:
+                from app.pdf_book import PdfBook
+                book = PdfBook(self.path)
+            else:
+                from app.epub_loader import EpubBook
+                book = EpubBook(self.path)
+            self.finished_loading.emit(book, self.path)
+        except Exception as e:
+            self.error.emit(str(e))
 
 
 class ReaderWindow(QMainWindow):
@@ -83,6 +110,19 @@ class ReaderWindow(QMainWindow):
         self._right_tabs.addTab(self._ai, "🤖 AI Companion")
         self._right_tabs.addTab(self._footnotes_panel, "📝 Footnotes")
         self._right_tabs.setMinimumWidth(320)
+        
+        # Add a right-aligned close button to the tab bar
+        corner_widget = QWidget(self)
+        corner_layout = QHBoxLayout(corner_widget)
+        corner_layout.setContentsMargins(0, 0, 8, 0)
+        
+        close_btn = QPushButton("×")
+        close_btn.setFixedSize(28, 28)
+        close_btn.setStyleSheet("QPushButton { font-weight: bold; font-size: 18px; border: none; background: transparent; color: #8b949e; padding: 0px; margin: 0px; } QPushButton:hover { background: #30363d; border-radius: 4px; color: #e6e1d8; }")
+        close_btn.clicked.connect(self._toggle_sidebar)
+        
+        corner_layout.addWidget(close_btn)
+        self._right_tabs.setCornerWidget(corner_widget, Qt.Corner.TopRightCorner)
 
         # ── Main Splitter ──
         self._splitter = QSplitter(Qt.Orientation.Horizontal, self)
@@ -97,6 +137,17 @@ class ReaderWindow(QMainWindow):
         self._splitter.setStretchFactor(2, 0)  # Sidebar: fixed-ish
 
         self.setCentralWidget(self._splitter)
+
+        # ── Loading Overlay ──
+        self._loading_overlay = QLabel("Loading Book...", self)
+        self._loading_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._loading_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 180); color: white; font-size: 24px; border-radius: 10px; padding: 20px;")
+        self._loading_overlay.hide()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, '_loading_overlay') and self._loading_overlay:
+            self._loading_overlay.resize(self.width(), self.height())
 
     def _setup_menus(self) -> None:
         """Build the menu bar."""
@@ -299,7 +350,7 @@ class ReaderWindow(QMainWindow):
         """Wire up all inter-panel signals."""
         # Library → open book
         self._library.book_selected.connect(self._open_book)
-        self._library.close_requested.connect(self._library.hide)
+        self._library.close_requested.connect(self._toggle_library)
 
         # Reader → Window (save progress)
         self._reader.chapter_changed.connect(self._on_chapter_changed)
@@ -332,6 +383,11 @@ class ReaderWindow(QMainWindow):
         next_shortcut.triggered.connect(lambda: self._reader._next_chapter())
         self.addAction(next_shortcut)
         
+        translate_page_shortcut = QAction(self)
+        translate_page_shortcut.setShortcut("Ctrl+Shift+T")
+        translate_page_shortcut.triggered.connect(lambda: self._reader._translate_visible_page())
+        self.addAction(translate_page_shortcut)
+        
         # Reader → TTS (read selection)
         self._reader.read_selection_requested.connect(self._tts_read_selection)
 
@@ -341,7 +397,7 @@ class ReaderWindow(QMainWindow):
         self._reader.focus_toggle_requested.connect(self._toggle_focus_mode)
 
         # AI panel
-        self._ai.close_requested.connect(self._right_tabs.hide)
+        self._ai.close_requested.connect(self._toggle_sidebar)
 
         # TTS signals
         self._tts.playback_finished.connect(self._on_playback_finished)
@@ -372,7 +428,7 @@ class ReaderWindow(QMainWindow):
     # ═══════════════════════════════════
 
     def _open_book(self, path: str) -> None:
-        """Load and display an EPUB book."""
+        """Load and display an EPUB book asynchronously."""
         try:
             self._statusbar.showMessage(f"Loading: {path}...")
             
@@ -382,58 +438,60 @@ class ReaderWindow(QMainWindow):
                 
             is_dante = path.lower().endswith((".dante", ".zip"))
                 
-            if is_dante:
-                from app.dante_book import DanteBook
-                self._current_book = DanteBook(path)
-                progress = self._prefs.get("book_progress", {}).get(path, {})
-                saved_chapter = progress.get("chapter", 0)
-                
-                self._reader.load_book(self._current_book)
-                if saved_chapter > 0 and saved_chapter < self._current_book.get_chapter_count():
-                    self._reader._load_chapter(saved_chapter)
-                    
-            elif use_pymupdf:
-                from app.pdf_book import PdfBook
-                self._current_book = PdfBook(path)
-                
-                # If it's an EPUB opened in Markdown mode, force it into Reading Mode 
-                # (since there's no native pdf.js for epubs)
-                if path.lower().endswith(".epub"):
-                    self._current_book.set_reading_mode(True)
-                    self._reader._pdf_reading_mode = True
-                    
-                self._reader.load_book(self._current_book)
-            else:
-                self._current_book = EpubBook(path)
-                # Load saved chapter progress for this EPUB
-                progress = self._prefs.get("book_progress", {}).get(path, {})
-                saved_chapter = progress.get("chapter", 0)
-                
-                self._reader.load_book(self._current_book)
-                if saved_chapter > 0 and saved_chapter < self._current_book.get_chapter_count():
-                    self._reader._load_chapter(saved_chapter)
-            self.setWindowTitle(f"📖 {self._current_book.title}")
-            self._ai.set_book_context(self._current_book.title)
-            self._statusbar.showMessage(
-                f"Loaded: {self._current_book.title} "
-                f"({self._current_book.get_chapter_count()} chapters)"
-            )
-
-            # Save as last book
-            self._prefs["last_book"] = path
-            save_prefs(self._prefs)
+            self._loading_overlay.resize(self.width(), self.height())
+            self._loading_overlay.show()
+            self._loading_overlay.raise_()
             
-            if hasattr(self._current_book, 'footnotes'):
-                self._footnotes_panel.load_footnotes(self._current_book.footnotes)
-            else:
-                self._footnotes_panel.load_footnotes({})
+            self._loader_thread = BookLoaderThread(path, is_dante, use_pymupdf, self)
+            self._loader_thread.finished_loading.connect(self._on_book_loaded)
+            self._loader_thread.error.connect(self._on_book_load_error)
+            self._loader_thread.start()
 
         except Exception as e:
-            self._statusbar.showMessage(f"Error loading book: {e}")
-            QMessageBox.warning(self, "Load Error", f"Could not load book:\n{e}")
+            self._on_book_load_error(str(e))
+
+    def _on_book_load_error(self, error_msg: str) -> None:
+        self._loading_overlay.hide()
+        self._statusbar.showMessage(f"Error loading book: {error_msg}")
+        QMessageBox.warning(self, "Load Error", f"Could not load book:\n{error_msg}")
+
+    def _on_book_loaded(self, book_obj, path: str) -> None:
+        self._loading_overlay.hide()
+        self._current_book = book_obj
+        
+        # If it's an EPUB opened in Markdown mode, force it into Reading Mode 
+        if path.lower().endswith(".epub") and getattr(self._current_book, 'is_pdf', False):
+            self._current_book.set_reading_mode(True)
+            self._reader._pdf_reading_mode = True
+            
+        progress = self._prefs.get("book_progress", {}).get(path, {})
+        saved_chapter = progress.get("chapter", 0)
+        
+        self._reader.load_book(self._current_book)
+        if saved_chapter > 0 and saved_chapter < self._current_book.get_chapter_count():
+            self._reader._load_chapter(saved_chapter)
+            
+        self.setWindowTitle(f"📖 {self._current_book.title}")
+        self._ai.set_book_context(self._current_book.title)
+        self._statusbar.showMessage(
+            f"Loaded: {self._current_book.title} "
+            f"({self._current_book.get_chapter_count()} chapters)"
+        )
+
+        # Save as last book
+        self._prefs["last_book"] = path
+        save_prefs(self._prefs)
+        
+        if hasattr(self._current_book, 'footnotes'):
+            self._footnotes_panel.load_footnotes(self._current_book.footnotes)
+        else:
+            self._footnotes_panel.load_footnotes({})
 
     def _on_footnote_requested(self, foot_id: str) -> None:
-        self._right_tabs.show()
+        target = 320
+        current = self._right_tabs.width() if self._right_tabs.isVisible() else 0
+        if not self._right_tabs.isVisible() or self._right_tabs.maximumWidth() == 0:
+            self._animate_widget_width(self._right_tabs, current, target)
         self._right_tabs.setCurrentWidget(self._footnotes_panel)
         self._footnotes_panel.scroll_to_footnote(foot_id)
 
@@ -472,20 +530,64 @@ class ReaderWindow(QMainWindow):
         self._reader.set_page_width(width)
         save_prefs(self._prefs)
 
+    def _animate_widget_width(self, widget: QWidget, start_width: int, end_width: int, max_reset: int = 16777215) -> None:
+        if end_width > 0 and not widget.isVisible():
+            widget.show()
+            
+        anim = QPropertyAnimation(widget, b"maximumWidth", self)
+        anim.setDuration(150)
+        anim.setStartValue(start_width)
+        anim.setEndValue(end_width)
+        anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        anim_min = QPropertyAnimation(widget, b"minimumWidth", self)
+        anim_min.setDuration(150)
+        anim_min.setStartValue(start_width)
+        anim_min.setEndValue(end_width)
+        anim_min.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        
+        if end_width == 0:
+            anim.finished.connect(widget.hide)
+        else:
+            def on_finished():
+                widget.setMaximumWidth(max_reset)
+                if widget == self._right_tabs:
+                    widget.setMinimumWidth(320)
+                else:
+                    widget.setMinimumWidth(0)
+            anim.finished.connect(on_finished)
+            
+        if not hasattr(self, '_animations'):
+            self._animations = []
+        self._animations.extend([anim, anim_min])
+        anim.start()
+        anim_min.start()
+        
+        self._animations = [a for a in self._animations if a.state() == QPropertyAnimation.State.Running]
+
     def _toggle_library(self) -> None:
-        self._library.setVisible(not self._library.isVisible())
+        target = 200 if not self._library.isVisible() or self._library.maximumWidth() == 0 else 0
+        current = self._library.width() if self._library.isVisible() else 0
+        self._animate_widget_width(self._library, current, target)
 
     def _toggle_sidebar(self) -> None:
-        self._right_tabs.setVisible(not self._right_tabs.isVisible())
+        target = 320 if not self._right_tabs.isVisible() or self._right_tabs.maximumWidth() == 0 else 0
+        current = self._right_tabs.width() if self._right_tabs.isVisible() else 0
+        self._animate_widget_width(self._right_tabs, current, target)
 
     def _toggle_focus_mode(self) -> None:
         """Toggle both sidebars simultaneously for distraction-free reading."""
-        if self._library.isVisible() or self._right_tabs.isVisible():
-            self._library.hide()
-            self._right_tabs.hide()
-        else:
-            self._library.show()
-            self._right_tabs.show()
+        is_visible = (self._library.isVisible() and self._library.maximumWidth() > 0) or \
+                     (self._right_tabs.isVisible() and self._right_tabs.maximumWidth() > 0)
+                     
+        lib_target = 0 if is_visible else 200
+        sidebar_target = 0 if is_visible else 320
+        
+        lib_current = self._library.width() if self._library.isVisible() else 0
+        sidebar_current = self._right_tabs.width() if self._right_tabs.isVisible() else 0
+        
+        self._animate_widget_width(self._library, lib_current, lib_target)
+        self._animate_widget_width(self._right_tabs, sidebar_current, sidebar_target)
 
     def _toggle_pdf_reading_mode(self, checked: bool) -> None:
         self._prefs["pdf_reading_mode"] = checked
