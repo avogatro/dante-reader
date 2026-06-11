@@ -24,7 +24,7 @@ from PyQt6.QtWidgets import (
 from .library_panel import LibraryPanel
 from .reader_panel import ReaderPanel
 from .ai_panel import AiPanel
-from .qwen_engine import QwenTTSEngine
+from .omnivoice_engine import OmniVoiceTTSEngine
 from .epub_loader import EpubBook
 from .url_scheme_handler import EpubSchemeHandler
 from .config import load_api_key, load_prefs, save_prefs
@@ -37,7 +37,7 @@ class ReaderWindow(QMainWindow):
         super().__init__()
         self._prefs = load_prefs()
         self._current_book: EpubBook | None = None
-        self._tts = QwenTTSEngine(self)
+        self._tts = OmniVoiceTTSEngine(self)
         
         from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
         self._media_player = QMediaPlayer(self)
@@ -246,7 +246,7 @@ class ReaderWindow(QMainWindow):
         # TTS Speaker submenu
         speaker_menu = tts_menu.addMenu("Voice Selection")
         speaker_group = QActionGroup(self)
-        current_voice = self._prefs.get("tts_voice", "aiden")
+        current_voice = self._prefs.get("tts_voice", "jiang_voice")
         
         self._auto_next_action = QAction("Auto-Continue Next Chapter", self)
         self._auto_next_action.setCheckable(True)
@@ -258,7 +258,8 @@ class ReaderWindow(QMainWindow):
         # Add language hints for known voices
         voice_hints = {
             "aiden": " (EN)", "ryan": " (EN)", "aria": " (EN)", "sarah": " (EN)",
-            "cora": " (EN)", "lucas": " (EN)", "nova": " (EN)", "oliver": " (EN)"
+            "cora": " (EN)", "lucas": " (EN)", "nova": " (EN)", "oliver": " (EN)",
+            "jiang_voice": " (EN)"
         }
         for voice in self._tts.get_available_voices():
             v_id = voice["id"]
@@ -362,8 +363,8 @@ class ReaderWindow(QMainWindow):
         if hasattr(self._reader, "set_pdf_dark_mode"):
             self._reader.set_pdf_dark_mode(self._prefs.get("pdf_dark_mode", False))
             
-        # Note: QwenTTSEngine does not use rate, it uses speaker
-        self._tts.set_voice(self._prefs.get("tts_voice", "aiden"))
+        # Note: OmniVoiceTTSEngine does not use rate, it uses speaker
+        self._tts.set_voice(self._prefs.get("tts_voice", "jiang_voice"))
         self._tts.set_skip_footnotes(self._prefs.get("tts_skip_footnotes", True))
 
     # ═══════════════════════════════════

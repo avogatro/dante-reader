@@ -261,5 +261,8 @@ class QwenTTSEngine(BaseTTSEngine):
             except queue.Empty:
                 break
                 
+        # Clear buffer to eliminate stop delay
+        self._audio_buffer = np.zeros((0, 1), dtype='float32')
+                
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)

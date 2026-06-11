@@ -171,17 +171,33 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
    - Implemented dynamic DOM translation injection for any standard EPUB file without requiring the .dante format.
    - Built a background TranslationManager that streams translated blocks into a JSON cache, ensuring the UI remains responsive and API costs are minimized through caching.
 2. **Translation API Robustness & Error Handling**
-   - Corrected multiple complex Python binding issues, such as rogue inline rom PyQt6.QtCore import QTimer imports that caused standard EPUB link navigation handlers to fail with UnboundLocalError.
+   - Corrected multiple complex Python binding issues, such as rogue inline imports that caused standard EPUB link navigation handlers to fail with UnboundLocalError.
    - Engineered state locks (_translating_chapters = set()) inside the asynchronous translation workers to prevent race conditions and duplicate API requests if users rapid-fire the translation button.
    - Implemented deep visual UI indicators (e.g. ⏳ Translating... button states) and bubbled backend threading exceptions up to strict Qt WebEngine visual popups for immediate feedback when API connections fail.
 3. **SVG Rendering Quirks & Aspect Ratio Preservation**
-   - Fixed catastrophic EPUB cover image distortions inside QtWebEngine caused by standard EPUB generators lowercasing strict XML attributes (iewbox and preserveaspectratio).
+   - Fixed catastrophic EPUB cover image distortions inside QtWebEngine caused by standard EPUB generators lowercasing strict XML attributes (viewbox and preserveaspectratio).
    - Built a Regex pre-processor within the HTML injection pipeline to repair tag capitalization safely **after** BeautifulSoup has completely finished parsing and formatting the translation blocks.
 
 ### 💡 Phase 5 Lessons Learned
 
 > [!TIP]
 > **BeautifulSoup Attribute Casing Quirks**
-> **Symptom:** Regex replacements converting iewbox to iewBox inside EPUB HTML appeared to randomly fail and revert back to lowercase when rendered in the Chromium engine.
+> **Symptom:** Regex replacements converting viewbox to viewBox inside EPUB HTML appeared to randomly fail and revert back to lowercase when rendered in the Chromium engine.
 > **Solution:** BeautifulSoup, when initialized with the standard html.parser, forcefully lowercases all element attributes by design. If raw string regex manipulation (like fixing camelCase XML attributes) occurs *before* a BeautifulSoup pass (e.g., to inject translation IDs), BeautifulSoup will completely overwrite the case-sensitive fixes. Always run raw string HTML patches **after** all DOM-tree parsing libraries have finished executing.
 
+
+### 🏆 Phase 6 Achievements
+
+1. **OmniVoice Neural TTS Engine Integration**
+   - Successfully integrated the `k2-fsa/OmniVoice` model for zero-shot voice cloning capabilities natively within the reader.
+   - Built an advanced dual-thread (producer-consumer) architecture to solve the "Time-To-First-Audio" delay. A background worker aggressively generates audio while a discrete playback thread perfectly synchronizes UI highlighting and continuous `sounddevice` stream injection.
+   - Designed dynamic reference text loading (automatically resolving `.txt` companion files alongside `.wav` voice clones).
+2. **Instant Hardware Stop Routines**
+   - Eliminated audio ghosting/delay upon pausing by explicitly clearing the underlying numpy arrays feeding the active `sd.OutputStream` hardware callbacks, yielding millisecond-accurate stops.
+
+### 💡 Phase 6 Lessons Learned
+
+> [!WARNING]
+> **Blocking Batch Generation vs UI Synchronization**
+> **Symptom:** When swapping from a streaming engine (`Qwen`) to a batch engine (`OmniVoice`), the UI would highlight sentences *before* the audio actually played, and insert massive silences between sentences.
+> **Solution:** You cannot tie UI highlights to the start of a blocking TTS generation call. We split the engine: one thread purely generates and pushes to a `queue.Queue`, and a second thread waits on that queue to instantly trigger the UI highlight exactly as the numpy audio chunk is passed to the sound card.

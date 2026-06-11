@@ -6,7 +6,7 @@ An advanced EPUB and PDF reader built with PyQt6, featuring integrated AI Transl
 - **EPUB and PDF Support**: Fast and reliable rendering powered by PyQt6-WebEngine and PDF.js.
 - **Dante Mode**: Specialized side-by-side reading layout (Original, IPA Pronunciation, Translation) for language learning.
 - **AI Translation**: Seamlessly translate text passages or full pages using Google Gemini AI.
-- **Text-to-Speech (TTS)**: High-quality offline TTS using `faster-qwen3-tts` or standard `pyttsx3`.
+- **Text-to-Speech (TTS)**: High-quality offline TTS using `omnivoice` (default advanced), or standard `pyttsx3`.
 - **Distraction-Free Reading**: Hide toolbars and focus on the text.
 - **Customization**: True dark mode for both EPUBs and PDFs, adjustable fonts, spacing, and layouts.
 
@@ -24,15 +24,17 @@ An advanced EPUB and PDF reader built with PyQt6, featuring integrated AI Transl
    cd dante-reader
    ```
 
-2. **Install core dependencies**
+2. **Install PyTorch with NVIDIA (CUDA) support**
+   This is required as a first step for the advanced OmniVoice TTS engine. Find the exact command for your system on the [PyTorch website](https://pytorch.org/), for example:
    ```bash
-   pip install -r app/requirements.txt
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
    ```
 
-3. **(Optional) Install Advanced TTS engine**
-   If you want to use the high-quality Qwen3 TTS engine, install it separately:
+3. **Install core dependencies & TTS engine**
+   OmniVoice is included as the default advanced TTS engine:
    ```bash
-   pip install faster-qwen3-tts
+   pip install -r app/requirements.txt
+   pip install omnivoice
    ```
 
 ### Configuration

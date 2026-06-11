@@ -31,6 +31,7 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         super().__init__(parent)
         self._model: Optional[OmniVoice] = None
         self._thread: Optional[threading.Thread] = None
+        self._player_thread: Optional[threading.Thread] = None
         
         self._stop_flag = threading.Event()
         self._paused = threading.Event()
@@ -44,10 +45,12 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         # Audio Streaming State
         self._audio_queue = queue.Queue()
         self._audio_buffer = np.zeros((0, 1), dtype='float32')
+        self._generation_queue = queue.Queue(maxsize=3)
         
         # Default reference info
         self._ref_audio = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'voice', 'jiang_voice.wav'))
         self._ref_text = "Because Russia and Ukraine export a lot of grain to these places. These places are not food independent. They rely on fertilizer. They rely on food imports."
+        self.set_voice("jiang_voice")
         
         # Continuous hardware stream to prevent hardware pops
         self._stream = sd.OutputStream(
@@ -124,11 +127,22 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
 
     def set_voice(self, voice_id: str) -> None:
         self._speaker = voice_id
-        # Very simple handling for now, assuming voice_id maps to a file in voice directory
-        voice_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'voice', f"{voice_id}.wav"))
+        voice_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'voice'))
+        voice_path = os.path.join(voice_dir, f"{voice_id}.wav")
+        text_path = os.path.join(voice_dir, f"{voice_id}.txt")
+       
         if os.path.exists(voice_path):
             self._ref_audio = voice_path
-            # To be complete, we'd load the ref_text from a corresponding JSON, but we'll leave default for now
+            
+            target_path = text_path if os.path.exists(text_path) else None
+            if target_path:
+                try:
+                    with open(target_path, 'r', encoding='utf-8') as f:
+                        content = f.read().strip().strip('"\'')
+                        if content:
+                            self._ref_text = content
+                except Exception as e:
+                    logging.error(f"Failed to load ref text for {voice_id}: {e}")
 
     def set_skip_footnotes(self, skip: bool) -> None:
         self._skip_footnotes = skip
@@ -167,10 +181,23 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
 
         self._stop_flag.clear()
         self._paused.set()
+        
+        # Clear generation queue
+        while not self._generation_queue.empty():
+            try:
+                self._generation_queue.get_nowait()
+            except queue.Empty:
+                break
+                
         self._thread = threading.Thread(
             target=self._worker, args=(sentences_map,), daemon=True
         )
         self._thread.start()
+        
+        self._player_thread = threading.Thread(
+            target=self._player, daemon=True
+        )
+        self._player_thread.start()
 
     def _worker(self, sentences_map: list[tuple[str, str]]) -> None:
         try:
@@ -185,7 +212,6 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
                     break
 
                 logging.info(f"[OMNIVOICE TTS] Generating sentence {i+1}/{len(sentences_map)}: {clean_sentence[:50]!r}...")
-                self.sentence_started.emit(i, raw_sentence)
                 
                 try:
                     # OmniVoice generates the whole sentence at once
@@ -205,28 +231,61 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
                         if wav_chunk.ndim == 1:
                             wav_chunk = wav_chunk.reshape(-1, 1)
                         
-                        # Wait for the queue to drain a bit before queuing more to prevent huge memory usage on long texts
-                        # But wait we want continuous playback! We queue it directly.
-                        self._audio_queue.put(wav_chunk)
+                        # Wait until there is room in the queue
+                        while not self._stop_flag.is_set():
+                            try:
+                                self._generation_queue.put((i, raw_sentence, wav_chunk), timeout=0.1)
+                                break
+                            except queue.Full:
+                                pass
                         
                 except Exception as e:
                     logging.error(f"Error on sentence {i+1}: {e}")
-                
-                # Wait for the audio queue to drain before marking the sentence as finished
-                while not self._audio_queue.empty():
-                    if self._stop_flag.is_set():
-                        break
-                    self._paused.wait()
-                    sd.sleep(50)
-                
-                self.sentence_finished.emit(i)
+                    
+            # Signal end of generation
+            while not self._stop_flag.is_set():
+                try:
+                    self._generation_queue.put(None, timeout=0.1)
+                    break
+                except queue.Full:
+                    pass
 
         except Exception as e:
             import traceback
             traceback.print_exc()
             self.error.emit(f"OmniVoice TTS Error: {str(e)}")
+
+    def _player(self) -> None:
+        try:
+            while not self._stop_flag.is_set():
+                self._paused.wait()
+                if self._stop_flag.is_set():
+                    break
+                
+                try:
+                    item = self._generation_queue.get(timeout=0.1)
+                except queue.Empty:
+                    continue
+                    
+                if item is None:
+                    break # End of text
+                    
+                i, raw_sentence, wav_chunk = item
+                
+                self.sentence_started.emit(i, raw_sentence)
+                self._audio_queue.put(wav_chunk)
+                
+                # Wait for audio to finish playing
+                while (not self._audio_queue.empty() or len(self._audio_buffer) > 0) and not self._stop_flag.is_set():
+                    self._paused.wait()
+                    sd.sleep(50)
+                
+                if not self._stop_flag.is_set():
+                    self.sentence_finished.emit(i)
+                    
         finally:
-            self.playback_finished.emit()
+            if not self._stop_flag.is_set():
+                self.playback_finished.emit()
 
     def pause(self) -> None:
         self._paused.clear()
@@ -238,11 +297,19 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         return not self._paused.is_set()
         
     def is_playing(self) -> bool:
-        return self._thread is not None and self._thread.is_alive()
+        return (self._thread is not None and self._thread.is_alive()) or (self._player_thread is not None and self._player_thread.is_alive())
 
     def stop(self) -> None:
         self._stop_flag.set()
         self._paused.set()
+        
+        # Clear generation queue
+        if hasattr(self, '_generation_queue'):
+            while not self._generation_queue.empty():
+                try:
+                    self._generation_queue.get_nowait()
+                except queue.Empty:
+                    break
         
         # Instantly clear the audio hardware queue to stop playback
         while not self._audio_queue.empty():
@@ -251,5 +318,11 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
             except queue.Empty:
                 break
                 
+        # CLEAR BUFFER TO FIX STOP DELAY
+        self._audio_buffer = np.zeros((0, 1), dtype='float32')
+                
         if self._thread and self._thread.is_alive():
             self._thread.join(timeout=1.0)
+            
+        if self._player_thread and self._player_thread.is_alive():
+            self._player_thread.join(timeout=1.0)

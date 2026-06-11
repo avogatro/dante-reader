@@ -12,9 +12,10 @@ e-book/pdf/**/*.pdf
 e-book/pdf/*.pdf
 
 # Ignore user preferences and scratch folder
-app/user_prefs.json
+
 scratch/
 speakers_json/*
 audio-book/*
 voice/*
 e-book/e-pub/thy-neighbors-wife.epub
+app/user_prefs.json
