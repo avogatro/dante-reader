@@ -16,15 +16,15 @@ from app.interfaces import BaseTTSEngine
 _FOOTNOTE_PATTERN = re.compile(r"\[\d+\]|\[\*+\]|\[note\]", re.IGNORECASE)
 
 # Simple sentence splitter (handles ., !, ? optionally followed by a closing quote, then space or end)
-_SENTENCE_SPLIT = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"'”’]))\s+")
-
+# _SENTENCE_SPLIT = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"'”’]))\s+")
+_SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+")
 
 def strip_footnote_markers(text: str) -> str:
     """Remove inline footnote markers like [137] from text."""
     return _FOOTNOTE_PATTERN.sub("", text)
 
 
-def split_sentences(text: str) -> list[str]:
+def split_sentences(text: str, re_pattern=_SENTENCE_SPLIT) -> list[str]:
     """Split text into sentences for progressive reading."""
     sentences = []
     # Split by newlines first to prevent massive blocks from choking engines
@@ -32,7 +32,7 @@ def split_sentences(text: str) -> list[str]:
         line = line.strip()
         if not line:
             continue
-        parts = _SENTENCE_SPLIT.split(line)
+        parts = re_pattern.split(line)
         sentences.extend([p.strip() for p in parts if p.strip()])
     return sentences
 
