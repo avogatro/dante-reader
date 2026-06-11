@@ -20,6 +20,7 @@ class PdfBook:
         self.title = os.path.basename(path).replace('.pdf', '')
         self.is_pdf = True
         self._reading_mode = False
+        self.language = ""
         
         self._doc = None
         if HAVE_FITZ:

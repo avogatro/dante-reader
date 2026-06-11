@@ -143,6 +143,7 @@ class DanteBook:
         self.author = "Dante Alighieri"
         self.is_pdf = False
         self.is_dante = True
+        self.language = ""
         
         self.chapters: list[DanteChapter] = []
         self._toc: list[tuple[str, int]] = []
@@ -166,6 +167,10 @@ class DanteBook:
             self.images = data.get("images", {})
             self.audio_clips = data.get("audio_clips", {})
             self.videos = data.get("videos", {})
+            
+            tracks = self.metadata.get("tracks", {})
+            if "text" in tracks and "language" in tracks["text"]:
+                self.language = tracks["text"]["language"]
                 
             index = 0
             for b_idx, book in enumerate(data.get("books", [])):

@@ -28,6 +28,7 @@ from .ai_panel import AiPanel
 from .omnivoice_engine import OmniVoiceTTSEngine
 from .epub_loader import EpubBook
 from .url_scheme_handler import EpubSchemeHandler
+from .dictionary import DictionaryEngine
 from .config import load_api_key, load_prefs, save_prefs
 
 
@@ -56,7 +57,52 @@ class BookLoaderThread(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
+class DictionaryLLMWorker(QThread):
+    finished_definition = pyqtSignal(str)
+    error = pyqtSignal(str)
 
+    def __init__(self, backend, model_name: str, word: str, source_lang: str, target_lang: str, parent=None):
+        super().__init__(parent)
+        self.backend = backend
+        self.model_name = model_name
+        self.word = word
+        self.source_lang = source_lang
+        self.target_lang = target_lang
+
+    def run(self):
+        # Incorporate the source language into the prompt if known
+        lang_context = f"{self.source_lang} " if self.source_lang else ""
+        prompt = f"Define the {lang_context}word '{self.word}' concisely in {self.target_lang} in one short sentence. Only output the definition, nothing else."
+        try:
+            result = self.backend.generate(prompt, self.model_name)
+            self.finished_definition.emit(result)
+        except Exception as e:
+            self.error.emit(str(e))
+
+class LanguageDetectorWorker(QThread):
+    finished_lang = pyqtSignal(str)
+    
+    def __init__(self, backend, model_name: str, text_sample: str, parent=None):
+        super().__init__(parent)
+        self.backend = backend
+        self.model_name = model_name
+        self.text_sample = text_sample
+
+    def run(self):
+        prompt = (
+            f"What language is the following text written in? "
+            f"Reply ONLY with the language name (e.g. 'English', 'Italian', 'French'). "
+            f"Do not write a full sentence. Just the language name.\n\n"
+            f"Text:\n{self.text_sample[:1000]}"
+        )
+        try:
+            result = self.backend.generate(prompt, self.model_name).strip()
+            # Clean up potential LLM chattiness
+            result = result.replace("The text is written in", "").replace("The language is", "").strip(" .\n\"'")
+            if result:
+                self.finished_lang.emit(result)
+        except Exception:
+            pass # Silent failure for background detection
 class ReaderWindow(QMainWindow):
     """Main application window for the EPUB Reader."""
 
@@ -79,6 +125,9 @@ class ReaderWindow(QMainWindow):
             self._prefs.get("window_width", 1400),
             self._prefs.get("window_height", 900),
         )
+
+        # ── Setup Dictionary ──
+        self._dictionary = DictionaryEngine()
 
         self._setup_panels()
         self._setup_menus()
@@ -368,6 +417,7 @@ class ReaderWindow(QMainWindow):
         self._reader.next_chapter_requested.connect(lambda: self._reader._next_chapter())
         self._reader.audio_play_requested.connect(self._play_media_audio)
         self._reader.footnote_requested.connect(self._on_footnote_requested)
+        self._reader.dictionary_lookup_requested.connect(self._on_dictionary_lookup_requested)
 
         # Keyboard shortcuts for Navigation
         from PyQt6.QtGui import QKeySequence
@@ -464,6 +514,32 @@ class ReaderWindow(QMainWindow):
             self._current_book.set_reading_mode(True)
             self._reader._pdf_reading_mode = True
             
+        # ── Language Detection ──
+        if not getattr(self._current_book, "language", ""):
+            cached_langs = self._prefs.setdefault("book_languages", {})
+            if path in cached_langs:
+                self._current_book.language = cached_langs[path]
+            else:
+                backend_name = self._ai._backend_combo.currentText()
+                model_name = self._ai._model_combo.currentText()
+                backend = self._ai._backends.get(backend_name)
+                
+                if backend and model_name and self._current_book.get_chapter_count() > 0:
+                    text_sample = ""
+                    try:
+                        first_chap = self._current_book.get_chapter(0)
+                        if hasattr(first_chap, "get_html"):
+                            text_sample = first_chap.get_html()
+                        elif isinstance(first_chap, str):
+                            text_sample = first_chap
+                    except Exception:
+                        pass
+                        
+                    if len(text_sample) > 50:
+                        self._lang_worker = LanguageDetectorWorker(backend, model_name, text_sample, self)
+                        self._lang_worker.finished_lang.connect(lambda lang, p=path: self._on_language_detected(p, lang))
+                        self._lang_worker.start()
+            
         progress = self._prefs.get("book_progress", {}).get(path, {})
         saved_chapter = progress.get("chapter", 0)
         
@@ -487,6 +563,13 @@ class ReaderWindow(QMainWindow):
         else:
             self._footnotes_panel.load_footnotes({})
 
+    def _on_language_detected(self, path: str, lang: str) -> None:
+        if self._current_book and getattr(self._current_book, "path", "") == path:
+            self._current_book.language = lang
+        self._prefs.setdefault("book_languages", {})[path] = lang
+        save_prefs(self._prefs)
+        self._statusbar.showMessage(f"Detected book language: {lang}", 4000)
+
     def _on_footnote_requested(self, foot_id: str) -> None:
         target = 320
         current = self._right_tabs.width() if self._right_tabs.isVisible() else 0
@@ -494,6 +577,43 @@ class ReaderWindow(QMainWindow):
             self._animate_widget_width(self._right_tabs, current, target)
         self._right_tabs.setCurrentWidget(self._footnotes_panel)
         self._footnotes_panel.scroll_to_footnote(foot_id)
+
+    def _on_dictionary_lookup_requested(self, word: str) -> None:
+        """Handle double-click word lookup requests."""
+        target_lang = self._prefs.get("translation_lang", "Modern English")
+        source_lang = getattr(self._current_book, "language", "")
+        
+        definition = self._dictionary.lookup(word, source_lang, target_lang)
+        from PyQt6.QtWidgets import QToolTip
+        from PyQt6.QtGui import QCursor
+        
+        pos = QCursor.pos()
+        
+        if definition:
+            QToolTip.showText(pos, definition)
+        else:
+            # Fallback to LLM
+            backend_name = self._ai._backend_combo.currentText()
+            model_name = self._ai._model_combo.currentText()
+            backend = self._ai._backends.get(backend_name)
+            
+            if not backend or not model_name:
+                self._statusbar.showMessage(f"Dictionary: No offline definition found for '{word}' and no AI available.")
+                return
+                
+            QToolTip.showText(pos, f"<i>Asking AI about '{word}'...</i>")
+            
+            # Keep reference to avoid garbage collection
+            self._dict_worker = DictionaryLLMWorker(backend, model_name, word, source_lang, target_lang, self)
+            
+            # Using default argument trick in lambda to capture `pos` and `word` accurately
+            self._dict_worker.finished_definition.connect(
+                lambda result, p=pos, w=word: QToolTip.showText(p, f"<div style='margin-bottom: 4px; font-size: 14px;'><b>{w}</b> (AI)</div><div style='font-size: 12px;'>{result}</div>")
+            )
+            self._dict_worker.error.connect(
+                lambda e: self._statusbar.showMessage(f"AI Dictionary Error: {e}", 3000)
+            )
+            self._dict_worker.start()
 
     # ═══════════════════════════════════
     # Text Selection → AI

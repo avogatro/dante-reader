@@ -121,9 +121,10 @@ class ReaderPanel(QWidget):
     prev_chapter_requested = pyqtSignal()
     next_chapter_requested = pyqtSignal()
     
-    # Media signals
+    # Media & Context signals
     audio_play_requested = pyqtSignal(str)
     footnote_requested = pyqtSignal(str)
+    dictionary_lookup_requested = pyqtSignal(str)
 
     def __init__(self, scheme_handler, parent=None):
         super().__init__(parent)
@@ -615,6 +616,7 @@ class ReaderPanel(QWidget):
         
         html = self._inject_dark_css(html)
         html = self._inject_reading_style(html)
+        html = self._inject_dictionary_js(html)
         
         # Inject the active table layout directly into the HTML so it takes effect instantly
         layout_css = f"<style id='table-column-toggles'>{self._get_table_layout_css()}</style>"
@@ -731,6 +733,26 @@ class ReaderPanel(QWidget):
         """
         return self._inject_head_content(html, style)
 
+    def _inject_dictionary_js(self, html: str) -> str:
+        """Inject Javascript to listen for double clicks on words in the original text."""
+        js = """
+        <script id='dictionary-js'>
+        document.addEventListener('dblclick', function(e) {
+            var targetClass = e.target.closest('.track-text, .track-original');
+            if (!targetClass) return;
+            
+            var selection = window.getSelection();
+            if (!selection.rangeCount) return;
+            
+            var word = selection.toString().trim();
+            if (word.length > 0) {
+                window.location.href = "epub://action/dict?word=" + encodeURIComponent(word);
+            }
+        });
+        </script>
+        """
+        return self._inject_head_content(html, js)
+
     def _update_nav_state(self) -> None:
         """Update navigation buttons and label."""
         if not self._book:
@@ -778,6 +800,15 @@ class ReaderPanel(QWidget):
                     QTimer.singleShot(0, lambda: self._handle_video_click(media_id))
                 elif media_type == "foot":
                     QTimer.singleShot(0, lambda: self._handle_footnote_click(media_id))
+            elif path == "dict":
+                from PyQt6.QtCore import QUrlQuery
+                import urllib.parse
+                query = QUrlQuery(url.query())
+                word = query.queryItemValue("word")
+                if word:
+                    # QUrlQuery returns URL-encoded string. We decode it.
+                    word = urllib.parse.unquote(word)
+                    QTimer.singleShot(0, lambda: self.dictionary_lookup_requested.emit(word))
             return
 
         try:
