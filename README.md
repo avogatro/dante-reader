@@ -24,11 +24,21 @@ An advanced EPUB and PDF reader built with PyQt6, featuring integrated AI Transl
    cd dante-reader
    ```
 
-2. **Install PyTorch with NVIDIA (CUDA) support**
-   This is required as a first step for the advanced OmniVoice TTS engine. Find the exact command for your system on the [PyTorch website](https://pytorch.org/), for example:
-   ```bash
-   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
-   ```
+2. **Install PyTorch with Hardware Acceleration**
+   This is required as a first step for the advanced OmniVoice TTS engine. Choose the command for your system (or find the latest on the [PyTorch website](https://pytorch.org/)):
+   - terms like cu130, cu128, rocm6.2 depends on which CUDA or ROCm Toolkit version you have installed on your machine. You can check your installed version by running `nvcc --version` (for CUDA) or `rocminfo` (for ROCm).
+   - **NVIDIA GPUs (Windows/Linux)**:
+     ```bash
+     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu130
+     ```
+   - **AMD GPUs (Linux / Windows via WSL2)**:
+     ```bash
+     pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2
+     ```
+   - **Apple Silicon (M1/M2/M3 Macs)**:
+     ```bash
+     pip install torch torchvision torchaudio
+     ```
 
 3. **Install core dependencies & TTS engine**
    OmniVoice is included as the default advanced TTS engine:

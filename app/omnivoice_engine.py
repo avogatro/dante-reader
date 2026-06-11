@@ -100,8 +100,15 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
             if not OMNIVOICE_AVAILABLE:
                 raise ImportError("omnivoice is not installed.")
                 
-            device = "cuda:0" if torch.cuda.is_available() else "cpu"
-            dtype = torch.bfloat16 if torch.cuda.is_available() else torch.float32
+            if torch.cuda.is_available():
+                device = "cuda:0"
+                dtype = torch.bfloat16
+            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+                device = "mps"
+                dtype = torch.float16
+            else:
+                device = "cpu"
+                dtype = torch.float32
             
             logging.info("[OMNIVOICE TTS] Loading OmniVoice model...")
             self._model = OmniVoice.from_pretrained(
