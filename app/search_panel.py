@@ -6,6 +6,7 @@ from PyQt6.QtCore import pyqtSignal, Qt
 
 class SearchPanel(QWidget):
     result_selected = pyqtSignal(int, str)  # chapter_idx, query
+    clear_requested = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -118,6 +119,7 @@ class SearchPanel(QWidget):
         self._status_label.setText("Type a query in the top bar to search.")
         self._status_label.show()
         self._clear_btn.hide()
+        self.clear_requested.emit()
 
     def _on_item_double_clicked(self, item: QListWidgetItem):
         chapter_idx = item.data(Qt.ItemDataRole.UserRole)

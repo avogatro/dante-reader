@@ -45,3 +45,8 @@ In a standard web app, the DOM *is* the state. In this PyQt app, state is fragme
 
 ---
 *Documented: June 2026*
+
+### 6. DOM Element Lifecycle & Viewport Tracking
+To maintain the reader's focus position when adding or removing translation columns dynamically, we queried the bounding rectangles of visible elements (`tr`, `p`). 
+* **The Problem**: When updating CSS stylesheets dynamically (`document.createElement('style')`), accessing `document.head` in malformed EPUB XHTML documents returned `null`, causing an `Uncaught TypeError: Cannot read properties of null (reading 'appendChild')`.
+* **The Solution**: We implemented a robust fallback (`document.head || document.documentElement`) to safely append stylesheets, and improved viewport anchor tracking by verifying element visibility (`rect.height > 0`) and recalculating scroll offsets safely after the DOM repaints.

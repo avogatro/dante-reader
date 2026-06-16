@@ -12,8 +12,8 @@ import pyttsx3
 from app.interfaces import BaseTTSEngine
 
 
-# Regex to match inline footnote markers like [137], [note], [*], etc.
-_FOOTNOTE_PATTERN = re.compile(r"\[\d+\]|\[\*+\]|\[note\]", re.IGNORECASE)
+# Regex to match inline footnote markers like [137], [note], [*], [Pg 19], etc.
+_FOOTNOTE_PATTERN = re.compile(r"\[\d+\]|\[\*+\]|\[note\]|\[Pg\s*\d+\]", re.IGNORECASE)
 
 # Simple sentence splitter (handles ., !, ? optionally followed by a closing quote, then space or end)
 # _SENTENCE_SPLIT = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"'”’]))\s+")

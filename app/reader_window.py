@@ -453,6 +453,7 @@ class ReaderWindow(QMainWindow):
         
         # Search panel
         self._search_panel.result_selected.connect(self._on_search_result_selected)
+        self._search_panel.clear_requested.connect(self._on_search_clear_requested)
 
         # AI panel
         self._ai.close_requested.connect(self._toggle_sidebar)
@@ -620,6 +621,10 @@ class ReaderWindow(QMainWindow):
         
         # Find the text in the rendered page
         QTimer.singleShot(150, lambda: self._reader._page.findText(query))
+
+    def _on_search_clear_requested(self) -> None:
+        """Clear the yellow text selection in the reader view."""
+        self._reader._page.findText("")
 
     def _on_dictionary_lookup_requested(self, word: str) -> None:
         """Handle double-click word lookup requests."""

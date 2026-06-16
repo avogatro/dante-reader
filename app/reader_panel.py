@@ -291,14 +291,53 @@ class ReaderPanel(QWidget):
         css_str = self._get_table_layout_css()
         js = f"""
         (function() {{
+            // 1. Find an anchor element that is currently visible
+            var anchor = null;
+            var anchorOffset = 0;
+            
+            var elements = document.querySelectorAll('tr, p, h1, h2, h3, h4, h5, h6');
+            for (var i = 0; i < elements.length; i++) {{
+                var el = elements[i];
+                var rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) continue;
+                
+                // Prefer elements that are genuinely in view
+                if ((rect.top >= 0 && rect.top <= window.innerHeight / 2) || (rect.top < 0 && rect.bottom > window.innerHeight / 3)) {{
+                    anchor = el;
+                    anchorOffset = rect.top;
+                    break;
+                }}
+            }}
+
+            // 2. Update the style
             var styleId = 'table-column-toggles';
             var styleEl = document.getElementById(styleId);
             if (!styleEl) {{
                 styleEl = document.createElement('style');
                 styleEl.id = styleId;
-                document.head.appendChild(styleEl);
+                var head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
+                if (head) {{
+                    head.appendChild(styleEl);
+                }}
             }}
             styleEl.textContent = '{css_str}';
+            
+            // 3. Restore the relative scroll position
+            if (anchor) {{
+                var restoreScroll = function() {{
+                    var newRect = anchor.getBoundingClientRect();
+                    var diff = newRect.top - anchorOffset;
+                    if (diff !== 0 && Math.abs(diff) > 1) {{
+                        window.scrollBy(0, diff);
+                    }}
+                }};
+                // Try multiple times as browser layout engines might defer the paint
+                restoreScroll();
+                requestAnimationFrame(function() {{
+                    restoreScroll();
+                    setTimeout(restoreScroll, 50);
+                }});
+            }}
         }})();
         """
         self._page.runJavaScript(js)
@@ -501,7 +540,7 @@ class ReaderPanel(QWidget):
             for key, val in tracks.items():
                 chk = QCheckBox(val.get("label", key))
                 # Initially uncheck pronunciation tracks and the AI translation track
-                chk.setChecked(val.get("type") != "pronunciation" and key != "ai_translation")
+                chk.setChecked(val.get("type") != "pronunciation" and key not in ("ai_translation", "translation"))
                 chk.stateChanged.connect(self._update_table_layout)
                 self._track_toggles_layout.addWidget(chk)
                 self._dynamic_checkboxes[key] = chk
@@ -989,27 +1028,69 @@ class ReaderPanel(QWidget):
     def _on_selection_changed(self) -> None:
         """Handle text selection via the built-in QWebEnginePage signal."""
         
-        def _emit_cleaned(text: str):
+        def _emit_cleaned(result_str: str):
+            if not result_str:
+                return
+            
+            import json
+            try:
+                data = json.loads(result_str)
+                text = data.get("text", "")
+                track = data.get("track", "")
+            except:
+                text = result_str
+                track = ""
+                
             if not text:
                 return
+                
+            # If we identified the track column of the selection, sync the TTS combobox
+            if track:
+                index = self._table_tts_combo.findData(track)
+                if index >= 0:
+                    self._table_tts_combo.setCurrentIndex(index)
+                else:
+                    # Fallback for normal EPUB mode without data keys
+                    if track == "original":
+                        idx = self._table_tts_combo.findText("Original")
+                        if idx >= 0:
+                            self._table_tts_combo.setCurrentIndex(idx)
+                    elif track == "translation" or track == "ai_translation":
+                        idx = self._table_tts_combo.findText("AI Translation")
+                        if idx >= 0:
+                            self._table_tts_combo.setCurrentIndex(idx)
+                            
             # Remove multiple empty lines caused by table DOM gaps
             cleaned = "\n".join([line for line in text.splitlines() if line.strip()])
             if cleaned:
                 self.text_selected.emit(cleaned)
                 
-        # Constrain selection to a single column in table/grid mode
+        # Constrain selection to a single column in table/grid mode, and identify track
         js = """
         (function() {
+            var output = { text: '', track: '' };
             var sel = window.getSelection();
-            if (!sel || sel.rangeCount === 0) return '';
+            if (!sel || sel.rangeCount === 0) return JSON.stringify(output);
             
             var anchor = sel.anchorNode;
-            if (!anchor) return window.getSelection().toString();
+            if (!anchor) {
+                output.text = window.getSelection().toString();
+                return JSON.stringify(output);
+            }
+            
             var cell = anchor.nodeType === 3 ? anchor.parentElement.closest('[class*="track-"]') : anchor.closest('[class*="track-"]');
-            if (!cell) return window.getSelection().toString();
+            if (!cell) {
+                output.text = window.getSelection().toString();
+                return JSON.stringify(output);
+            }
             
             var className = Array.from(cell.classList).find(c => c.startsWith('track-'));
-            if (!className) return window.getSelection().toString();
+            if (!className) {
+                output.text = window.getSelection().toString();
+                return JSON.stringify(output);
+            }
+            
+            output.track = className.replace('track-', '');
             
             var range = sel.getRangeAt(0);
             var fragment = range.cloneContents();
@@ -1024,7 +1105,8 @@ class ReaderPanel(QWidget):
                 }
             });
             
-            return tempDiv.innerText.trim();
+            output.text = tempDiv.innerText.trim();
+            return JSON.stringify(output);
         })();
         """
         self._page.runJavaScript(js, _emit_cleaned)
@@ -1176,7 +1258,7 @@ class ReaderPanel(QWidget):
                     var clone = cell.cloneNode(true);
                     
                     // Remove multimedia buttons, images, and superscripts (like [183])
-                    var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup');
+                    var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
                     elementsToRemove.forEach(function(el) {{ el.remove(); }});
                     
                     // Add newlines to block elements so textContent doesn't crush lines together
@@ -1196,11 +1278,36 @@ class ReaderPanel(QWidget):
             if (targetClass && document.querySelectorAll(targetClass).length > 0) {{
                 return extractDanteText(sel.anchorNode);
             }} else {{
-                if (sel.rangeCount > 0 && sel.toString().length > 0) {{
-                    return sel.toString();
+                if (sel.rangeCount > 0) {{
+                    if (!sel.isCollapsed) {{
+                        // Selection is highlighted text, just return that
+                        var div = document.createElement('div');
+                        div.appendChild(sel.getRangeAt(0).cloneContents());
+                        var unwanted = div.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
+                        unwanted.forEach(function(el) {{ el.remove(); }});
+                        return div.textContent;
+                    }} else if (sel.anchorNode && document.body.contains(sel.anchorNode)) {{
+                        // Read from cursor to end
+                        var range = document.createRange();
+                        range.setStart(sel.anchorNode, sel.anchorOffset);
+                        range.setEndAfter(document.body.lastChild || document.body);
+                        var fragment = range.cloneContents();
+                        var div = document.createElement('div');
+                        div.appendChild(fragment);
+                        
+                        var unwanted = div.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
+                        unwanted.forEach(function(el) {{ el.remove(); }});
+                        
+                        var blocks = div.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li');
+                        blocks.forEach(function(el) {{ el.appendChild(document.createTextNode('\\n')); }});
+                        var brs = div.querySelectorAll('br');
+                        brs.forEach(function(el) {{ el.replaceWith('\\n'); }});
+                        
+                        return div.textContent;
+                    }}
                 }}
                 var clone = document.body.cloneNode(true);
-                var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup');
+                var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
                 elementsToRemove.forEach(function(el) {{ el.remove(); }});
                 
                 var blocks = clone.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li');

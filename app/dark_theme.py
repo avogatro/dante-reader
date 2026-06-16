@@ -399,6 +399,11 @@ a.fnanchor:hover, a.pginternal:hover {{
     outline: 1px solid rgba(201, 169, 110, 0.4);
 }}
 
+/* Hide line and page numbers */
+.linenum, .pagenum {{
+    display: none !important;
+}}
+
 /* Selection styling */
 ::selection {{
     background-color: {ACCENT_GOLD} !important;
