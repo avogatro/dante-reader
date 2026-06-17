@@ -610,17 +610,19 @@ class ReaderWindow(QMainWindow):
         if not self._current_book:
             return
             
-        # Load the chapter
-        self._reader._load_chapter(chapter_idx)
-        
-        # We need a slight delay to allow the QWebEngineView to render the HTML before searching
-        from PyQt6.QtCore import QTimer
-        
-        # Focus WebEngine and clear previous search
         self._reader._page.findText("")
         
-        # Find the text in the rendered page
-        QTimer.singleShot(150, lambda: self._reader._page.findText(query))
+        def on_search_load_ready(ok=True):
+            if ok:
+                from PyQt6.QtCore import QTimer
+                QTimer.singleShot(250, lambda: self._reader._page.findText(query))
+            try:
+                self._reader._page.loadFinished.disconnect(on_search_load_ready)
+            except TypeError:
+                pass
+                
+        self._reader._page.loadFinished.connect(on_search_load_ready)
+        self._reader._load_chapter(chapter_idx)
 
     def _on_search_clear_requested(self) -> None:
         """Clear the yellow text selection in the reader view."""
