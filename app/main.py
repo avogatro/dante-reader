@@ -28,6 +28,20 @@ from app.dark_theme import DARK_QSS
 from app.reader_window import ReaderWindow
 
 
+import time
+import cProfile
+import pstats
+import io
+
+_START_TIME = time.time()
+_DEBUG_PROFILE = "--debug-profile" in sys.argv
+
+if _DEBUG_PROFILE:
+    _PROFILER = cProfile.Profile()
+    _PROFILER.enable()
+else:
+    _PROFILER = None
+
 def main():
     app = QApplication(sys.argv)
     app.setOrganizationName("DanteReader")
@@ -43,6 +57,25 @@ def main():
     # Launch main window
     window = ReaderWindow()
     window.show()
+
+    # Schedule a callback on the first idle loop (when UI is done drawing)
+    from PyQt6.QtCore import QTimer
+    def print_startup_time():
+        if _PROFILER:
+            _PROFILER.disable()
+            
+        elapsed = time.time() - _START_TIME
+        print(f"\n🚀 UI fully rendered in: {elapsed:.3f} seconds\n")
+        
+        if _PROFILER:
+            # Print profiler stats
+            s = io.StringIO()
+            ps = pstats.Stats(_PROFILER, stream=s).sort_stats('cumulative')
+            ps.print_stats(25)
+            print("=== STARTUP PROFILE (TOP 25 CUMULATIVE TIME) ===")
+            print(s.getvalue())
+        
+    QTimer.singleShot(0, print_startup_time)
 
     sys.exit(app.exec())
 

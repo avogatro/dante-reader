@@ -4,7 +4,7 @@ Shows cover art thumbnails with titles in a scrollable grid layout.
 """
 
 import os
-from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtCore import Qt, pyqtSignal, QSize, QThread
 from PyQt6.QtGui import QPixmap, QIcon, QFont, QColor, QPainter, QPen
 from PyQt6.QtWidgets import (
     QWidget,
@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QMessageBox,
+    
 )
 
 from .epub_loader import EpubBook
@@ -63,6 +64,50 @@ def _generate_placeholder_cover(title: str, width: int = 140, height: int = 200)
     return pixmap
 
 
+class LibraryScannerWorker(QThread):
+    book_found = pyqtSignal(str, str, object)
+    finished_scan = pyqtSignal(int)
+
+    def run(self):
+        epubs_dir = get_epubs_dir()
+        if not os.path.isdir(epubs_dir):
+            self.finished_scan.emit(-1)
+            return
+
+        book_files = []
+        for root, _, files in os.walk(epubs_dir):
+            for f in files:
+                if f.lower().endswith((".epub", ".pdf", ".dante", ".zip")):
+                    rel_path = os.path.relpath(os.path.join(root, f), epubs_dir)
+                    book_files.append(rel_path)
+                    
+        book_files.sort(key=str.lower)
+
+        for filename in book_files:
+            full_path = os.path.join(epubs_dir, filename)
+            basename = os.path.basename(filename)
+            title = os.path.splitext(basename)[0]
+            import re
+            title_clean = re.sub(r"\s*\[\d+\]\s*$", "", title)
+
+            cover_data = None
+            try:
+                if filename.lower().endswith(".pdf"):
+                    book = PdfBook(full_path)
+                elif filename.lower().endswith((".dante", ".zip")):
+                    book = DanteBook(full_path)
+                else:
+                    book = EpubBook(full_path)
+                    
+                cover_data = book.get_cover_image()
+            except Exception:
+                pass
+
+            self.book_found.emit(title_clean, full_path, cover_data)
+            
+        self.finished_scan.emit(len(book_files))
+
+
 class LibraryPanel(QWidget):
     """
     Sidebar panel showing the user's EPUB library as a visual bookshelf.
@@ -75,6 +120,7 @@ class LibraryPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._books: list[dict] = []  # {"path": str, "title": str, "cover": QPixmap}
+        self._scanner = None
         self._setup_ui()
         self.scan_library()
 
@@ -151,75 +197,53 @@ class LibraryPanel(QWidget):
         layout.addWidget(self._count_label)
 
     def scan_library(self) -> None:
-        """Scan the e-pub directory and populate the book list."""
+        """Scan the e-pub directory and populate the book list asynchronously."""
+        if self._scanner and self._scanner.isRunning():
+            return
+            
         self._books.clear()
         self._list.clear()
+        self._count_label.setText("Scanning library...")
 
-        epubs_dir = get_epubs_dir()
+        self._scanner = LibraryScannerWorker()
+        self._scanner.book_found.connect(self._on_book_found)
+        self._scanner.finished_scan.connect(self._on_scan_finished)
+        self._scanner.start()
 
-        if not os.path.isdir(epubs_dir):
+    def _on_book_found(self, title_clean: str, full_path: str, cover_data: object) -> None:
+        cover_pixmap = None
+        if cover_data:
+            pix = QPixmap()
+            pix.loadFromData(cover_data)
+            if not pix.isNull():
+                cover_pixmap = pix.scaled(
+                    140, 200,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+
+        if cover_pixmap is None:
+            cover_pixmap = _generate_placeholder_cover(title_clean)
+
+        self._books.append({
+            "path": full_path,
+            "title": title_clean,
+            "cover": cover_pixmap,
+        })
+
+        item = QListWidgetItem()
+        item.setText(title_clean)
+        item.setIcon(QIcon(cover_pixmap))
+        item.setData(Qt.ItemDataRole.UserRole, full_path)
+        item.setFont(QFont("Segoe UI", 10))
+        item.setSizeHint(QSize(160, 260))
+        self._list.addItem(item)
+        
+    def _on_scan_finished(self, count: int) -> None:
+        if count == -1:
             self._count_label.setText("No e-pub directory found")
-            return
-
-        book_files = []
-        for root, _, files in os.walk(epubs_dir):
-            for f in files:
-                if f.lower().endswith((".epub", ".pdf", ".dante", ".zip")):
-                    # Store path relative to epubs_dir so the UI doesn't get cluttered with full paths
-                    rel_path = os.path.relpath(os.path.join(root, f), epubs_dir)
-                    book_files.append(rel_path)
-                    
-        book_files.sort(key=str.lower)
-
-        for filename in book_files:
-            full_path = os.path.join(epubs_dir, filename)
-            # Extract display title from the basename: strip extension and [ID]
-            basename = os.path.basename(filename)
-            title = os.path.splitext(basename)[0]
-            import re
-            title_clean = re.sub(r"\s*\[\d+\]\s*$", "", title)
-
-            # Try to extract cover from EPUB/PDF/Dante (quick load)
-            cover_pixmap = None
-            try:
-                if filename.lower().endswith(".pdf"):
-                    book = PdfBook(full_path)
-                elif filename.lower().endswith((".dante", ".zip")):
-                    book = DanteBook(full_path)
-                else:
-                    book = EpubBook(full_path)
-                    
-                cover_data = book.get_cover_image()
-                if cover_data:
-                    pix = QPixmap()
-                    pix.loadFromData(cover_data)
-                    if not pix.isNull():
-                        cover_pixmap = pix.scaled(
-                            140, 200,
-                            Qt.AspectRatioMode.KeepAspectRatio,
-                            Qt.TransformationMode.SmoothTransformation,
-                        )
-            except Exception:
-                pass
-
-            if cover_pixmap is None:
-                cover_pixmap = _generate_placeholder_cover(title_clean)
-
-            self._books.append({
-                "path": full_path,
-                "title": title_clean,
-                "cover": cover_pixmap,
-            })
-
-            item = QListWidgetItem()
-            item.setText(title_clean)
-            item.setIcon(QIcon(cover_pixmap))
-            item.setData(Qt.ItemDataRole.UserRole, full_path)
-            item.setFont(QFont("Segoe UI", 10))
-            item.setSizeHint(QSize(160, 260))
-            self._list.addItem(item)
-
-        self._count_label.setText(f"{len(self._books)} books")
+        else:
+            self._count_label.setText(f"{count} books")
 
     def _filter_books(self, text: str) -> None:
         """Filter visible books by search text."""

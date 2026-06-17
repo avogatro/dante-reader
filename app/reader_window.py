@@ -111,12 +111,13 @@ class ReaderWindow(QMainWindow):
         self._prefs = load_prefs()
         self._current_book: EpubBook | None = None
         self._tts = OmniVoiceTTSEngine(self)
+        self._media_player = None
+        self._audio_output = None
+        self._current_media_id = None
         
-        from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
-        self._media_player = QMediaPlayer(self)
-        self._audio_output = QAudioOutput(self)
-        self._media_player.setAudioOutput(self._audio_output)
-        self._media_player.playbackStateChanged.connect(self._on_media_playback_state_changed)
+        # Lazy load the media player after the UI draws to avoid FFmpeg startup delays
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(500, self._init_media_player)
         self._current_media_id = None
 
         self.setWindowTitle("📖 Dante EPUB Reader")
@@ -855,6 +856,15 @@ class ReaderWindow(QMainWindow):
     # ═══════════════════════════════════
     # Media Playback
     # ═══════════════════════════════════
+    def _init_media_player(self) -> None:
+        if self._media_player is not None:
+            return
+        from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+        self._media_player = QMediaPlayer(self)
+        self._audio_output = QAudioOutput(self)
+        self._media_player.setAudioOutput(self._audio_output)
+        self._media_player.playbackStateChanged.connect(self._on_media_playback_state_changed)
+
     def _on_media_playback_state_changed(self, state):
         from PyQt6.QtMultimedia import QMediaPlayer
         if state == QMediaPlayer.PlaybackState.StoppedState:
@@ -865,6 +875,7 @@ class ReaderWindow(QMainWindow):
 
     def _play_media_audio(self, media_id: str) -> None:
         """Play or toggle an embedded audio clip via QMediaPlayer."""
+        self._init_media_player()
         from PyQt6.QtCore import QUrl
         from PyQt6.QtMultimedia import QMediaPlayer
         

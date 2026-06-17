@@ -14,12 +14,8 @@ from app.interfaces import BaseTTSEngine
 
 from .tts_engine import split_sentences, strip_footnote_markers
 
-try:
-    import torch
-    from omnivoice import OmniVoice
-    OMNIVOICE_AVAILABLE = True
-except ImportError:
-    OMNIVOICE_AVAILABLE = False
+# Lazy loaded
+OMNIVOICE_AVAILABLE = None
 
 
 class OmniVoiceTTSEngine(BaseTTSEngine):
@@ -29,7 +25,7 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self._model: Optional[OmniVoice] = None
+        self._model = None
         self._thread: Optional[threading.Thread] = None
         self._player_thread: Optional[threading.Thread] = None
         
@@ -62,8 +58,11 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         )
         self._stream.start()
         
-        # Start model initialization in the background immediately
-        threading.Thread(target=self._init_model_bg, daemon=True).start()
+        # Delay model initialization via the Qt event loop. 
+        # This guarantees PyTorch's heavy import (which locks the GIL) won't start
+        # until *after* the UI has finished drawing and the event loop is idle.
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(100, lambda: threading.Thread(target=self._init_model_bg, daemon=True).start())
 
     def _audio_callback(self, outdata, frames, time, status):
         """Called by sounddevice on a high-priority hardware thread to fetch audio frames."""
@@ -95,10 +94,19 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         except Exception as e:
             logging.error(f"Failed to background init OmniVoice model: {e}")
 
-    def _ensure_model(self) -> OmniVoice:
+    def _ensure_model(self):
+        global OMNIVOICE_AVAILABLE
         if self._model is None:
-            if not OMNIVOICE_AVAILABLE:
+            if OMNIVOICE_AVAILABLE is False:
                 raise ImportError("omnivoice is not installed.")
+            
+            try:
+                import torch
+                from omnivoice import OmniVoice
+                OMNIVOICE_AVAILABLE = True
+            except ImportError:
+                OMNIVOICE_AVAILABLE = False
+                raise ImportError("omnivoice or torch is not installed.")
                 
             if torch.cuda.is_available():
                 device = "cuda:0"

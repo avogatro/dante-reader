@@ -39,6 +39,7 @@ class AiPanel(QWidget):
     # Signals for thread-safe UI updates from the background worker
     _response_ready = pyqtSignal(str)
     _error_ready = pyqtSignal(str)
+    _backend_checked = pyqtSignal(str, bool, list)
     close_requested = pyqtSignal()
 
     def __init__(self, api_key: str = "", parent=None):
@@ -63,6 +64,7 @@ class AiPanel(QWidget):
         # Connect worker signals to UI update slots
         self._response_ready.connect(self._display_response)
         self._error_ready.connect(self._display_error)
+        self._backend_checked.connect(self._on_backend_checked)
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -208,14 +210,26 @@ class AiPanel(QWidget):
     # ── Backend Initialization ──
 
     def _init_backends(self) -> None:
-        """Probe available backends and set initial status."""
-        for name, backend in self._backends.items():
-            if backend.is_available():
-                models = backend.get_models()
-                if models:
-                    self._active_models[name] = models[0]
-                    
-        self._on_backend_changed(self._backend_combo.currentText())
+        """Probe available backends asynchronously so we don't freeze the UI."""
+        self._status_label.setText("⏳ Checking AI connections...")
+        self._set_buttons_enabled(False)
+        
+        def worker():
+            for name, backend in self._backends.items():
+                available = backend.is_available()
+                models = backend.get_models() if available else []
+                self._backend_checked.emit(name, available, models)
+                
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _on_backend_checked(self, name: str, available: bool, models: list) -> None:
+        """Slot called when a backend finishes its network check."""
+        if available and models:
+            self._active_models[name] = models[0]
+            
+        # Update the UI if this is the currently selected backend
+        if self._backend_combo.currentText() == name:
+            self._on_backend_changed(name)
 
     def _on_backend_changed(self, backend_name: str) -> None:
         """Handle backend selector change."""
