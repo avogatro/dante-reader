@@ -28,10 +28,10 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="48.625"
-     inkscape:cx="12"
+     inkscape:cx="12.010283"
      inkscape:cy="12"
-     inkscape:window-width="2560"
-     inkscape:window-height="1369"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
      inkscape:window-x="2152"
      inkscape:window-y="2385"
      inkscape:window-maximized="1"
@@ -46,9 +46,10 @@
      text-anchor="middle"
      font-weight="bold"
      id="text1"
-     style="fill:#ffffff;stroke-width:1.7663">Aa</text>
+     style="stroke-width:1.7663">Aa</text>
   <path
      d="M 18.503856,3.9291165 V 20.070883 M 15.936829,6.9556978 18.503856,3.9291165 21.070883,6.9556978 m -5.134054,10.0886042 2.567027,3.026581 2.567027,-3.026581"
      id="path1"
-     style="stroke-width:1.85823" />
+     style="stroke-width:1.858;stroke-dasharray:none;stroke:#ffffff;stroke-opacity:1"
+     inkscape:label="path1" />
 </svg>

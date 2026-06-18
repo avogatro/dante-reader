@@ -121,7 +121,7 @@ class ReaderWindow(QMainWindow):
         QTimer.singleShot(500, self._init_media_player)
         self._current_media_id = None
 
-        self.setWindowTitle("📖 Dante EPUB Reader")
+        self.setWindowTitle("Dante EPUB Reader")
         from PyQt6.QtCore import Qt
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowSystemMenuHint | Qt.WindowType.WindowMinMaxButtonsHint)
         self.setMinimumSize(1000, 600)
@@ -577,12 +577,12 @@ class ReaderWindow(QMainWindow):
         if saved_chapter > 0 and saved_chapter < self._current_book.get_chapter_count():
             self._reader._load_chapter(saved_chapter)
             
-        self.setWindowTitle(f"📖 {self._current_book.title}")
+        self.setWindowTitle(f"{self._current_book.title} - Dante Reader")
         
         title = self._current_book.title
         if len(title) > 50:
             title = title[:47] + "..."
-        self._title_bar.drag_area.setText(f"📖 {title}")
+        self._title_bar.drag_area.setText(f"{title}")
         
         total = self._current_book.get_chapter_count()
         self._title_bar.chapter_info.setText(f"{saved_chapter+1} / {total}")

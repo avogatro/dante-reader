@@ -68,6 +68,14 @@ class CustomTitleBar(QWidget):
         layout.setContentsMargins(8, 0, 0, 0)
         layout.setSpacing(4)
         
+        # App Logo
+        self.app_logo = QLabel()
+        from PyQt6.QtGui import QPixmap, QIcon
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "logo_mountain.svg")
+        self.app_logo.setPixmap(QIcon(icon_path).pixmap(24, 24))
+        self.app_logo.setContentsMargins(6, 0, 10, 0)
+        layout.addWidget(self.app_logo)
+        
         # Left Side (Open, Prev, Next, Combo, Search)
         self.btn_open = self._make_btn("open_file", "Open Book")
         self.btn_open.clicked.connect(self.open_requested.emit)

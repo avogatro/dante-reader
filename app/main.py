@@ -41,6 +41,11 @@ def main():
     # Apply global dark theme
     app.setStyleSheet(DARK_QSS)
 
+    # Set app icon
+    from PyQt6.QtGui import QIcon
+    icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "logo_mountain.svg")
+    app.setWindowIcon(QIcon(icon_path))
+
     # Set default application font
     font = QFont("Segoe UI", 13)
     app.setFont(font)

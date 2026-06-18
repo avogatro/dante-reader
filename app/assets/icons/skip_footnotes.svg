@@ -38,7 +38,8 @@
      inkscape:current-layer="svg2" />
   <g
      transform="matrix(0.73599838,0,0,0.73599838,3.1040019,-1.2432296)"
-     id="g2">
+     id="g2"
+	 stroke="#ffffff">
     <path
        d="M 11,4.702 A 0.705,0.705 0 0 0 9.797,4.204 L 6.413,7.587 A 1.4,1.4 0 0 1 5.416,8 H 3 A 1,1 0 0 0 2,9 v 6 a 1,1 0 0 0 1,1 h 2.416 a 1.4,1.4 0 0 1 0.997,0.413 l 3.383,3.384 A 0.705,0.705 0 0 0 11,19.298 Z"
        id="path1" />
@@ -65,5 +66,5 @@
      text-anchor="middle"
      font-weight="bold"
      id="text2"
-     style="fill:#ffffff;fill-opacity:1">[123]</text>
+     style="fill-opacity:1">[123]</text>
 </svg>

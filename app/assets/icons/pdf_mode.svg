@@ -28,10 +28,10 @@
      inkscape:pagecheckerboard="0"
      inkscape:deskcolor="#d1d1d1"
      inkscape:zoom="48.625"
-     inkscape:cx="12"
-     inkscape:cy="12"
-     inkscape:window-width="2560"
-     inkscape:window-height="1369"
+     inkscape:cx="12.010283"
+     inkscape:cy="15.290488"
+     inkscape:window-width="1920"
+     inkscape:window-height="1009"
      inkscape:window-x="2152"
      inkscape:window-y="2385"
      inkscape:window-maximized="1"
@@ -59,10 +59,12 @@
   <path
      d="M19 22 h 3 v -3"
      stroke-width="1.5"
-     id="path4" />
+     id="path4"
+     style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-opacity:1" />
   <path
      d="m 11.202578,14.747565 c 3.82609,0.904885 7.515373,3.110877 9.977877,6.412324"
      stroke-width="1.49385"
      id="path3"
-     sodipodi:nodetypes="cc" />
+     sodipodi:nodetypes="cc"
+     style="fill:none;fill-opacity:1;stroke:#ffffff;stroke-opacity:1" />
 </svg>
