@@ -530,6 +530,11 @@ class ReaderWindow(QMainWindow):
         self._loading_overlay.hide()
         self._current_book = book_obj
         
+        # If it's an EPUB opened in Markdown mode, force it into Reading Mode 
+        if path.lower().endswith(".epub") and getattr(self._current_book, 'is_pdf', False):
+            self._current_book.set_reading_mode(True)
+            self._reader._pdf_reading_mode = True
+            
         # Update Title Bar combobox
         self._title_bar.chapter_combo.blockSignals(True)
         self._title_bar.chapter_combo.clear()
@@ -538,11 +543,6 @@ class ReaderWindow(QMainWindow):
                 title = getattr(self._current_book, 'get_chapter_title', lambda x: f"Chapter {x+1}")(i)
                 self._title_bar.chapter_combo.addItem(f"{i+1}. {title}")
         self._title_bar.chapter_combo.blockSignals(False)
-        
-        # If it's an EPUB opened in Markdown mode, force it into Reading Mode 
-        if path.lower().endswith(".epub") and getattr(self._current_book, 'is_pdf', False):
-            self._current_book.set_reading_mode(True)
-            self._reader._pdf_reading_mode = True
             
         # ── Language Detection ──
         if not getattr(self._current_book, "language", ""):
