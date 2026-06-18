@@ -248,12 +248,8 @@ class ReaderWindow(QMainWindow):
                 if msg.wParam:
                     return True, 0
             elif msg.message == 0x0084: # WM_NCHITTEST
-                x = msg.lParam & 0xFFFF
-                if x > 32767: x -= 65536
-                y = (msg.lParam >> 16) & 0xFFFF
-                if y > 32767: y -= 65536
-                
-                pos = self.mapFromGlobal(QPoint(x, y))
+                from PyQt6.QtGui import QCursor
+                pos = self.mapFromGlobal(QCursor.pos())
                 margin = 8
                 
                 left = pos.x() < margin
@@ -319,6 +315,7 @@ class ReaderWindow(QMainWindow):
         tb.search_requested.connect(self._on_search_requested)
         tb.toggle_library.connect(self._toggle_library)
         tb.toggle_sidebar.connect(self._toggle_sidebar)
+        tb.scale_requested.connect(self._on_scale_requested)
         
         # Ribbon - View
         rb.theme_btn.setChecked(self._prefs.get("pdf_dark_mode", False))
@@ -485,6 +482,11 @@ class ReaderWindow(QMainWindow):
         # Note: OmniVoiceTTSEngine does not use rate, it uses speaker
         self._tts.set_voice(self._prefs.get("tts_voice", "jiang_voice"))
         self._tts.set_skip_footnotes(self._prefs.get("tts_skip_footnotes", True))
+
+    def _on_scale_requested(self, scale: float) -> None:
+        self._prefs["ui_scale"] = scale
+        save_prefs(self._prefs)
+        QMessageBox.information(self, "Restart Required", f"UI Scale set to {int(scale*100)}%.\nPlease restart the application for the changes to fully take effect.")
 
     # ═══════════════════════════════════
     # Book Loading

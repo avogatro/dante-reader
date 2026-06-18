@@ -34,6 +34,12 @@ else:
     _PROFILER = None
 
 def main():
+    from app.config import load_prefs
+    prefs = load_prefs()
+    ui_scale = prefs.get("ui_scale", 1.0)
+    if ui_scale != 1.0:
+        os.environ["QT_SCALE_FACTOR"] = str(ui_scale)
+
     app = QApplication(sys.argv)
     app.setOrganizationName("DanteReader")
     app.setApplicationName("DanteEpubReader")

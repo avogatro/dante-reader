@@ -68,7 +68,7 @@ class FootnotesPanel(QWidget):
         
         if not footnotes:
             lbl = QLabel("No footnotes available.")
-            lbl.setStyleSheet("color: #8b949e;")
+            lbl.setStyleSheet("color: #8b949e; background: transparent;")
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.content_layout.addWidget(lbl)
             return

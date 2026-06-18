@@ -179,6 +179,11 @@ QLabel {{
     background: transparent;
 }}
 
+QCheckBox {{
+    background: transparent;
+    color: {TEXT_PRIMARY};
+}}
+
 /* ═══════════════════════════════════════════
    List / Tree Views
    ═══════════════════════════════════════════ */

@@ -208,8 +208,9 @@ class ReaderPanel(QWidget):
         nav_bar.addWidget(self._btn_focus)
 
         nav_widget = QWidget()
+        nav_widget.setObjectName("topNavBar")
         nav_widget.setLayout(nav_bar)
-        nav_widget.setStyleSheet("background-color: #161b22; border-bottom: 1px solid #30363d;")
+        nav_widget.setStyleSheet("#topNavBar { border-bottom: 1px solid #30363d; }")
         nav_widget.hide()
         layout.addWidget(nav_widget)
 
@@ -226,19 +227,22 @@ class ReaderPanel(QWidget):
         self._dynamic_checkboxes = {}
         
         self._btn_translate_page = QPushButton("AI: Translate Page")
+  
         self._btn_translate_page.clicked.connect(self._translate_visible_page)
         self._table_nav_bar.addWidget(self._btn_translate_page)
         
         self._table_nav_bar.addStretch()
         
-        self._table_nav_bar.addWidget(QLabel("TTS:"))
+        self._label_tts= QLabel("TTS:")
+        self._table_nav_bar.addWidget(self._label_tts)
         self._table_tts_combo = QComboBox()
         self._table_tts_combo.addItems(["Original", "AI Translation"])
         self._table_nav_bar.addWidget(self._table_tts_combo)
         
         self._table_controls_widget = QWidget()
+        self._table_controls_widget.setObjectName("tableControls")
         self._table_controls_widget.setLayout(self._table_nav_bar)
-        self._table_controls_widget.setStyleSheet("background-color: #1c2128; border-bottom: 1px solid #30363d;")
+        self._table_controls_widget.setStyleSheet("#tableControls { border-bottom: 1px solid #30363d; }")
         self._table_controls_widget.hide()
         layout.addWidget(self._table_controls_widget)
 
@@ -540,6 +544,7 @@ class ReaderPanel(QWidget):
             
             for key, val in tracks.items():
                 chk = QCheckBox(val.get("label", key))
+                chk.setStyleSheet("background: transparent; padding: 1px 1px;")
                 # Initially uncheck pronunciation tracks and the AI translation track
                 chk.setChecked(val.get("type") != "pronunciation" and key not in ("ai_translation", "translation"))
                 chk.stateChanged.connect(self._update_table_layout)
@@ -555,11 +560,13 @@ class ReaderPanel(QWidget):
             self._table_tts_combo.blockSignals(False)
         else:
             self._chk_col_original = QCheckBox("Original")
+            self._chk_col_original.setStyleSheet("background: transparent; padding: 1px 1px;")
             self._chk_col_original.setChecked(True)
             self._chk_col_original.stateChanged.connect(self._update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_original)
             
             self._chk_col_translation = QCheckBox("AI Translation")
+            self._chk_col_translation.setStyleSheet("background: transparent; padding: 1px 1px;")
             self._chk_col_translation.setChecked(False)
             self._chk_col_translation.stateChanged.connect(self._update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_translation)

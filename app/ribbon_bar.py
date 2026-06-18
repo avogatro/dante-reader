@@ -58,22 +58,37 @@ class CustomTitleBar(QWidget):
     
     toggle_library = pyqtSignal()
     toggle_sidebar = pyqtSignal()
+    
+    scale_requested = pyqtSignal(float)
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedHeight(40)
+        self.setFixedHeight(45)
         self.setStyleSheet("background: #0d1117;")
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 0, 0, 0)
         layout.setSpacing(4)
         
-        # App Logo
-        self.app_logo = QLabel()
+        # App Logo / System Menu
+        self.app_logo = QToolButton()
         from PyQt6.QtGui import QPixmap, QIcon
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "logo_mountain.svg")
-        self.app_logo.setPixmap(QIcon(icon_path).pixmap(24, 24))
-        self.app_logo.setContentsMargins(6, 0, 10, 0)
+        self.app_logo.setIcon(QIcon(icon_path))
+        self.app_logo.setIconSize(QSize(24, 24))
+        self.app_logo.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0px 6px; } QToolButton::menu-indicator { image: none; }")
+        self.app_logo.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        
+        self.app_menu = QMenu(self)
+        self.scale_menu = self.app_menu.addMenu("UI Scale (Requires Restart)")
+        
+        for scale in [1.0, 1.25, 1.5, 1.75, 2.0]:
+            action = self.scale_menu.addAction(f"{int(scale*100)}%")
+            action.setData(scale)
+            
+        self.scale_menu.triggered.connect(lambda action: self.scale_requested.emit(float(action.data())))
+            
+        self.app_logo.setMenu(self.app_menu)
         layout.addWidget(self.app_logo)
         
         # Left Side (Open, Prev, Next, Combo, Search)
@@ -105,7 +120,7 @@ class CustomTitleBar(QWidget):
         self.search_input.returnPressed.connect(lambda: self.search_requested.emit(self.search_input.text()))
         
         self.chapter_info = QLabel("")
-        self.chapter_info.setStyleSheet("color: #8b949e; font-size: 13px; padding: 0px 6px;")
+        self.chapter_info.setStyleSheet("color: #8b949e; font-size: 13px; padding: 0px 6px; background: transparent;")
         
         layout.addWidget(self.btn_open)
         layout.addWidget(self.btn_prev)
@@ -118,7 +133,7 @@ class CustomTitleBar(QWidget):
         # Middle spacer (draggable area)
         self.drag_area = QLabel("")
         self.drag_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.drag_area.setStyleSheet("color: #8b949e; font-weight: bold; font-size: 14px;")
+        self.drag_area.setStyleSheet("color: #8b949e; font-weight: bold; font-size: 13px; padding: 0px; background: transparent;")
         self.drag_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.drag_area)
         
@@ -170,7 +185,7 @@ class CustomTitleBar(QWidget):
         b.setToolTip(tooltip)
         b.setFixedSize(36, 36)
         b.setStyleSheet("""
-            QPushButton { border: none; border-radius: 4px; background: transparent; }
+            QPushButton { padding: 1px; border: none; border-radius: 4px; background: transparent; }
             QPushButton:hover { background: #30363d; }
         """)
         return b
@@ -186,7 +201,7 @@ class RibbonBar(QTabWidget):
         super().__init__(parent)
         self.setFixedHeight(130)
         self.setStyleSheet("""
-            QTabWidget::pane { border: none; border-top: 1px solid #30363d; background: #0d1117; }
+            QTabWidget::pane { border: none; border-top: 1px solid #30363d; border-bottom: 1px solid #30363d; background: #0d1117; }
             QTabBar::tab { background: transparent; color: #8b949e; padding: 6px 16px; font-size: 13px; margin-top: 2px; border-radius: 4px; margin-right: 2px; }
             QTabBar::tab:selected { color: #c9a96e; background: #161b22; font-weight: bold; }
             QTabBar::tab:hover:!selected { background: #161b22; }
@@ -213,17 +228,17 @@ class RibbonBar(QTabWidget):
         content = QHBoxLayout()
         content.setSpacing(4)
         g.content_layout = content
-        
+        g.setStyleSheet("QFrame { border-right: 1px solid #30363d; border-radius: 0px; }")
         l.addLayout(content)
         l.addStretch()
         
         lbl = QLabel(title)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet("color: #e6e1d8; font-size: 11px; margin-top: 2px;")
+        lbl.setStyleSheet("color: #e6e1d8; font-size: 11px; margin-top: 2px; background: transparent;")
         l.addWidget(lbl)
         
         # Add a subtle right border to the group
-        g.setStyleSheet("QFrame { border-right: 1px solid #30363d; border-radius: 0px; }")
+        
         return g
 
     def _setup_view_tab(self):

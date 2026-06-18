@@ -30,7 +30,7 @@ class SearchPanel(QWidget):
         header_layout.addWidget(icon_lbl)
         
         self._title_label = QLabel(" Search Results")
-        self._title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6e1d8;")
+        self._title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6e1d8; background: transparent;")
         header_layout.addWidget(self._title_label)
         header_layout.addStretch()
 
@@ -40,6 +40,7 @@ class SearchPanel(QWidget):
                 background: transparent;
                 color: #58a6ff;
                 border: none;
+                padding: 1px;
             }
             QPushButton:hover { text-decoration: underline; }
         """)
@@ -50,7 +51,7 @@ class SearchPanel(QWidget):
         layout.addLayout(header_layout)
 
         self._status_label = QLabel("Type a query in the top bar to search.")
-        self._status_label.setStyleSheet("color: #8b949e; font-style: italic;")
+        self._status_label.setStyleSheet("color: #8b949e; font-style: italic; background: transparent;")
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
 
