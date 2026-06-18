@@ -36,8 +36,30 @@ class PdfBook:
 
     def get_toc_entries(self) -> list:
         if self._reading_mode and self._doc:
+            try:
+                toc = self._doc.get_toc()
+                if toc:
+                    return [(item[1], max(0, item[2] - 1)) for item in toc if item[2] > 0]
+            except Exception:
+                pass
             return [(f"Page {i+1}", i) for i in range(len(self._doc))]
         return [(self.title, 0)]
+
+    def get_chapter_title(self, index: int) -> str:
+        """Return the closest TOC chapter name for a given page index."""
+        if self._reading_mode and self._doc:
+            try:
+                toc = self._doc.get_toc()
+                last_title = f"Page {index+1}"
+                for item in toc:
+                    if item[2] > 0 and item[2] - 1 <= index:
+                        last_title = item[1]
+                    elif item[2] > 0:
+                        break
+                return last_title
+            except Exception:
+                pass
+        return f"Page {index+1}"
 
     def get_cover_image(self) -> bytes | None:
         if self._doc and len(self._doc) > 0:
@@ -60,6 +82,13 @@ class PdfBook:
         try:
             # pymupdf4llm extracts markdown preserving columns, tables, and headers perfectly
             md_text = pymupdf4llm.to_markdown(self._doc, pages=[index])
+            
+            import re
+            # Strip standalone page numbers (e.g. at the bottom/top of the page)
+            md_text = re.sub(r'(?m)^\s*\d+\s*$', '', md_text)
+            # Strip standard bracketed footnotes [123] and their text until the next paragraph
+            md_text = re.sub(r'(?m)^\[\d+\].*?(?=\n\n|\Z)', '', md_text, flags=re.DOTALL)
+            
             html_body = markdown.markdown(md_text, extensions=['tables'])
         except Exception as e:
             html_body = f"<p>Error extracting text: {e}</p>"

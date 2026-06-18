@@ -73,9 +73,12 @@ class AiPanel(QWidget):
 
         # ── Header ──
         header_layout = QHBoxLayout()
-        header_icon = QLabel("🤖")
-        header_icon.setFont(QFont("Segoe UI", 14))
-        header_icon.setStyleSheet("background: transparent;")
+        
+        header_icon = QLabel()
+        import os
+        from PyQt6.QtGui import QPixmap, QIcon
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "ai_model.svg")
+        header_icon.setPixmap(QIcon(icon_path).pixmap(24, 24))
         header_layout.addWidget(header_icon)
 
         header_label = QLabel("AI Companion")
@@ -140,23 +143,32 @@ class AiPanel(QWidget):
                 font-size: 16px;
             }
         """)
+        self._selection_label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._selection_label.customContextMenuRequested.connect(lambda pos: self._show_text_context_menu(pos, self._selection_label))
         layout.addWidget(self._selection_label)
 
         # ── Quick Action Buttons ──
         btn_row = QHBoxLayout()
         btn_row.setSpacing(6)
 
-        self._btn_explain = QPushButton("💡 Explain")
+        import os
+        from PyQt6.QtGui import QIcon
+        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
+
+        self._btn_explain = QPushButton(" Explain")
+        self._btn_explain.setIcon(QIcon(os.path.join(icon_dir, "explain.svg")))
         self._btn_explain.setToolTip("Explain the selected text in modern English")
         self._btn_explain.clicked.connect(self._explain)
         btn_row.addWidget(self._btn_explain)
 
-        self._btn_translate = QPushButton("🌍 Translate")
+        self._btn_translate = QPushButton(" Translate")
+        self._btn_translate.setIcon(QIcon(os.path.join(icon_dir, "translate.svg")))
         self._btn_translate.setToolTip("Translate to English")
         self._btn_translate.clicked.connect(self._translate)
         btn_row.addWidget(self._btn_translate)
 
-        self._btn_search = QPushButton("🔍 Research")
+        self._btn_search = QPushButton(" Research")
+        self._btn_search.setIcon(QIcon(os.path.join(icon_dir, "search.svg")))
         self._btn_search.setToolTip("Search for related content and context")
         self._btn_search.clicked.connect(self._research)
         btn_row.addWidget(self._btn_search)
@@ -170,6 +182,8 @@ class AiPanel(QWidget):
         self._input = QLineEdit()
         self._input.setPlaceholderText("Ask a question about the selected text...")
         self._input.returnPressed.connect(self._ask_question)
+        self._input.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._input.customContextMenuRequested.connect(lambda pos: self._show_text_context_menu(pos, self._input))
         input_row.addWidget(self._input, 1)
 
         self._btn_ask = QPushButton("Ask")
@@ -193,12 +207,16 @@ class AiPanel(QWidget):
                 font-size: 17px;
             }
         """)
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "ai_model.svg").replace("\\", "/")
         self._response.setHtml(
             '<div style="text-align: center; padding: 30px; color: #6e7681;">'
-            '<p style="font-size: 24px;">🤖</p>'
+            f'<p><img src="{icon_path}" width="32" height="32"></p>'
             '<p>Select text in the reader, then use the buttons above<br>'
             "or ask a free-form question.</p></div>"
         )
+        self._response.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._response.customContextMenuRequested.connect(lambda pos: self._show_text_context_menu(pos, self._response))
         layout.addWidget(self._response, 1)
 
         # ── Clear button ──
@@ -206,6 +224,27 @@ class AiPanel(QWidget):
         self._btn_clear.setStyleSheet("font-size: 11px;")
         self._btn_clear.clicked.connect(self._clear_response)
         layout.addWidget(self._btn_clear, alignment=Qt.AlignmentFlag.AlignRight)
+
+    def _show_text_context_menu(self, pos, widget) -> None:
+        if isinstance(widget, QLineEdit):
+            menu = widget.createStandardContextMenu()
+        else:
+            menu = widget.createStandardContextMenu(pos)
+            
+        import os
+        from PyQt6.QtGui import QIcon
+        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
+        for action in menu.actions():
+            text = action.text().replace("&", "")
+            if text == "Copy":
+                action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
+            elif text == "Select All":
+                action.setIcon(QIcon(os.path.join(icon_dir, "select_all.svg")))
+            elif text == "Paste":
+                action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
+                
+        menu.exec(widget.mapToGlobal(pos))
+        del menu
 
     # ── Backend Initialization ──
 
@@ -265,10 +304,14 @@ class AiPanel(QWidget):
         backend = self._backends.get(backend_name)
 
         if backend and backend.is_available():
-            self._status_label.setText(f"✅ {backend_name} connected — model: {model}")
+            import os
+            check_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "check.svg").replace("\\", "/")
+            self._status_label.setText(f"<img src='{check_path}' width='14' height='14'> {backend_name} connected — model: {model}")
             self._set_buttons_enabled(True)
         else:
-            self._status_label.setText(f"⚠️ {backend_name} unavailable. Check connection or API keys.")
+            import os
+            err_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "error.svg").replace("\\", "/")
+            self._status_label.setText(f"<img src='{err_path}' width='14' height='14'> {backend_name} unavailable. Check connection or API keys.")
             self._set_buttons_enabled(False)
 
     def _set_buttons_enabled(self, enabled: bool) -> None:
@@ -414,21 +457,25 @@ class AiPanel(QWidget):
         self._set_buttons_enabled(True)
         backend = self._backend_combo.currentText()
         model = self._model_combo.currentText()
-        self._status_label.setText(f"✅ {backend} — {model}")
+        import os
+        check_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "check.svg").replace("\\", "/")
+        self._status_label.setText(f"<img src='{check_path}' width='14' height='14'> {backend} — {model}")
 
     def _display_error(self, error: str) -> None:
         """Display an error message."""
         # Escape HTML in error text
         safe_error = error.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         safe_error = safe_error.replace("\n", "<br>")
+        import os
+        err_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "error.svg").replace("\\", "/")
         self._response.setHtml(
             f'<div style="color: #f85149; padding: 12px; font-family: Segoe UI, sans-serif; '
             f'font-size: 14px; line-height: 1.6;">'
-            f"⚠️ {safe_error}</div>"
+            f"<img src='{err_path}' width='14' height='14'> {safe_error}</div>"
         )
         self._is_processing = False
         self._set_buttons_enabled(True)
-        self._status_label.setText("⚠️ Last request failed")
+        self._status_label.setText(f"<img src='{err_path}' width='14' height='14'> Last request failed")
 
     def _format_response(self, text: str) -> str:
         """Convert markdown response to styled HTML."""
@@ -456,9 +503,11 @@ class AiPanel(QWidget):
 
     def _clear_response(self) -> None:
         """Clear the response area."""
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "ai_model.svg").replace("\\", "/")
         self._response.setHtml(
             '<div style="text-align: center; padding: 30px; color: #6e7681;">'
-            '<p style="font-size: 24px;">🤖</p>'
+            f'<p><img src="{icon_path}" width="32" height="32"></p>'
             '<p>Select text in the reader, then use the buttons above<br>'
             "or ask a free-form question.</p></div>"
         )

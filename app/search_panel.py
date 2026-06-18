@@ -21,7 +21,15 @@ class SearchPanel(QWidget):
 
         # Header
         header_layout = QHBoxLayout()
-        self._title_label = QLabel("🔍 Search Results")
+        
+        icon_lbl = QLabel()
+        import os
+        from PyQt6.QtGui import QPixmap, QIcon
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "search.svg")
+        icon_lbl.setPixmap(QIcon(icon_path).pixmap(20, 20))
+        header_layout.addWidget(icon_lbl)
+        
+        self._title_label = QLabel(" Search Results")
         self._title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6e1d8;")
         header_layout.addWidget(self._title_label)
         header_layout.addStretch()

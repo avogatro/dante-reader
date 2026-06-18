@@ -7,16 +7,7 @@ import sys
 import os
 import io
 
-# ── Fix Windows console encoding (MUST be first) ──
-# Without this, any print() containing Unicode (Japanese, arrows, etc.)
-# crashes the Qt app because the Windows console uses 'charmap' codec.
-if sys.platform == "win32":
-    sys.stdout = io.TextIOWrapper(
-        sys.stdout.buffer, encoding="utf-8", errors="replace", line_buffering=True
-    )
-    sys.stderr = io.TextIOWrapper(
-        sys.stderr.buffer, encoding="utf-8", errors="replace", line_buffering=True
-    )
+# No IO wrappers
 
 # Register custom URL scheme BEFORE QApplication is created
 from app.url_scheme_handler import register_epub_scheme

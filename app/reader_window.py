@@ -1,3 +1,4 @@
+import sys
 """
 Reader Window — Main application window assembling all panels.
 Three-column layout: Library | Reader | Footnote/AI sidebar.
@@ -121,6 +122,8 @@ class ReaderWindow(QMainWindow):
         self._current_media_id = None
 
         self.setWindowTitle("📖 Dante EPUB Reader")
+        from PyQt6.QtCore import Qt
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowSystemMenuHint | Qt.WindowType.WindowMinMaxButtonsHint)
         self.setMinimumSize(1000, 600)
         self.resize(
             self._prefs.get("window_width", 1400),
@@ -131,7 +134,6 @@ class ReaderWindow(QMainWindow):
         self._dictionary = DictionaryEngine()
 
         self._setup_panels()
-        self._setup_menus()
         self._setup_statusbar()
         self._connect_signals()
         self._apply_prefs()
@@ -159,10 +161,13 @@ class ReaderWindow(QMainWindow):
         self._search_panel = SearchPanel(self)
 
         # ── Right Sidebar (AI Companion / Search) ──
+        import os
+        from PyQt6.QtGui import QIcon
+        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
         self._right_tabs = QTabWidget()
-        self._right_tabs.addTab(self._ai, "🤖 AI Companion")
-        self._right_tabs.addTab(self._footnotes_panel, "📝 Footnotes")
-        self._right_tabs.addTab(self._search_panel, "🔍 Search")
+        self._right_tabs.addTab(self._ai, QIcon(os.path.join(icon_dir, "ai_model.svg")), " AI Companion")
+        self._right_tabs.addTab(self._footnotes_panel, QIcon(os.path.join(icon_dir, "footnotes.svg")), " Footnotes")
+        self._right_tabs.addTab(self._search_panel, QIcon(os.path.join(icon_dir, "search.svg")), " Search")
         self._right_tabs.setMinimumWidth(320)
         
         # Add a right-aligned close button to the tab bar
@@ -170,9 +175,13 @@ class ReaderWindow(QMainWindow):
         corner_layout = QHBoxLayout(corner_widget)
         corner_layout.setContentsMargins(0, 0, 8, 0)
         
-        close_btn = QPushButton("×")
+        from PyQt6.QtGui import QIcon
+        import os
+        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "close.svg")
+        close_btn = QPushButton()
+        close_btn.setIcon(QIcon(icon_path))
         close_btn.setFixedSize(28, 28)
-        close_btn.setStyleSheet("QPushButton { font-weight: bold; font-size: 18px; border: none; background: transparent; color: #8b949e; padding: 0px; margin: 0px; } QPushButton:hover { background: #30363d; border-radius: 4px; color: #e6e1d8; }")
+        close_btn.setStyleSheet("QPushButton { border: none; background: transparent; padding: 4px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
         close_btn.clicked.connect(self._toggle_sidebar)
         
         corner_layout.addWidget(close_btn)
@@ -182,7 +191,15 @@ class ReaderWindow(QMainWindow):
         self._splitter = QSplitter(Qt.Orientation.Horizontal, self)
         self._splitter.addWidget(self._library)
         self._splitter.addWidget(self._reader)
-        self._splitter.addWidget(self._right_tabs)
+        
+        # Wrap right tabs in a container for slide animation
+        self._sidebar_container = QWidget()
+        sidebar_layout = QHBoxLayout(self._sidebar_container)
+        sidebar_layout.setContentsMargins(0, 0, 0, 0)
+        sidebar_layout.setSpacing(0)
+        sidebar_layout.addWidget(self._right_tabs)
+        
+        self._splitter.addWidget(self._sidebar_container)
 
         # Set proportional sizes
         self._splitter.setSizes([200, 680, 520])
@@ -190,7 +207,24 @@ class ReaderWindow(QMainWindow):
         self._splitter.setStretchFactor(1, 1)  # Reader: stretches
         self._splitter.setStretchFactor(2, 0)  # Sidebar: fixed-ish
 
-        self.setCentralWidget(self._splitter)
+        from .ribbon_bar import CustomTitleBar, RibbonBar
+        self._title_bar = CustomTitleBar(self)
+        self._ribbon = RibbonBar(self)
+        
+        self._wire_ribbon_signals()
+        
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        main_layout.addWidget(self._title_bar)
+        main_layout.addWidget(self._ribbon)
+        main_layout.addWidget(self._splitter)
+        
+        main_widget = QWidget()
+        main_widget.setLayout(main_layout)
+        main_widget.setObjectName("MainWrapper")
+        main_widget.setStyleSheet("#MainWrapper { border: 1px solid #30363d; }")
+        self.setCentralWidget(main_widget)
 
         # ── Loading Overlay ──
         self._loading_overlay = QLabel("Loading Book...", self)
@@ -203,196 +237,165 @@ class ReaderWindow(QMainWindow):
         if hasattr(self, '_loading_overlay') and self._loading_overlay:
             self._loading_overlay.resize(self.width(), self.height())
 
-    def _setup_menus(self) -> None:
-        """Build the menu bar."""
-        menubar = self.menuBar()
 
-        # ═══ View Menu ═══
-        view_menu = menubar.addMenu("View")
+    def nativeEvent(self, eventType, message):
+        import ctypes
+        from ctypes.wintypes import MSG
+        from PyQt6.QtCore import QPoint
+        try:
+            msg = MSG.from_address(int(message))
+            if msg.message == 0x0083: # WM_NCCALCSIZE
+                if msg.wParam:
+                    return True, 0
+            elif msg.message == 0x0084: # WM_NCHITTEST
+                x = msg.lParam & 0xFFFF
+                if x > 32767: x -= 65536
+                y = (msg.lParam >> 16) & 0xFFFF
+                if y > 32767: y -= 65536
+                
+                pos = self.mapFromGlobal(QPoint(x, y))
+                margin = 8
+                
+                left = pos.x() < margin
+                right = pos.x() > self.width() - margin
+                top = pos.y() < margin
+                bottom = pos.y() > self.height() - margin
+                
+                if left and top: return True, 13
+                if right and top: return True, 14
+                if left and bottom: return True, 16
+                if right and bottom: return True, 17
+                if left: return True, 10
+                if right: return True, 11
+                if top: return True, 12
+                if bottom: return True, 15
+        except Exception:
+            pass
+        return False, 0
 
-        # Font Family submenu
-        font_menu = view_menu.addMenu("Font Family")
-        font_group = QActionGroup(self)
-        current_font = self._prefs.get("font_family", "Georgia")
-        for family in ["Georgia", "Times New Roman", "Palatino Linotype",
-                        "Garamond", "Baskerville", "Segoe UI", "Inter",
-                        "Courier New"]:
-            action = QAction(family, self)
-            action.setCheckable(True)
-            action.setChecked(family == current_font)
-            action.triggered.connect(lambda checked, f=family: self._set_font(f))
-            font_group.addAction(action)
-            font_menu.addAction(action)
+    def showEvent(self, event):
+        super().showEvent(event)
+        import ctypes
+        try:
+            hwnd = int(self.winId())
+            GWL_STYLE = -16
+            WS_THICKFRAME = 0x00040000
+            WS_CAPTION = 0x00C00000
+            WS_MAXIMIZEBOX = 0x00010000
+            WS_MINIMIZEBOX = 0x00020000
+            user32 = ctypes.windll.user32
+            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
+            if not (style & WS_CAPTION):
+                user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_THICKFRAME | WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX)
+                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0027) # SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
+        except Exception:
+            pass
 
-        # Font Size submenu
-        size_menu = view_menu.addMenu("Font Size")
-        size_group = QActionGroup(self)
-        current_size = self._prefs.get("font_size", 18)
-        for size in [12, 14, 16, 18, 20, 22, 24, 28, 32, 36, 40, 48, 56, 64, 72, 80, 96, 112, 128]:
-            action = QAction(f"{size}px", self)
-            action.setCheckable(True)
-            action.setChecked(size == current_size)
-            action.triggered.connect(lambda checked, s=size: self._set_font_size(s))
-            size_group.addAction(action)
-            size_menu.addAction(action)
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        from PyQt6.QtCore import QEvent
+        if event.type() == QEvent.Type.WindowStateChange:
+            if hasattr(self, "_title_bar"):
+                self._title_bar.set_maximized_icon(self.isMaximized())
 
-        # Line Spacing submenu
-        spacing_menu = view_menu.addMenu("Line Spacing")
-        spacing_group = QActionGroup(self)
-        current_lh = self._prefs.get("line_height", 1.8)
-        for lh, label in [(1.2, "Tight"), (1.5, "Normal"), (1.8, "Comfortable"),
-                           (2.0, "Relaxed"), (2.4, "Airy")]:
-            action = QAction(f"{label} ({lh})", self)
-            action.setCheckable(True)
-            action.setChecked(abs(lh - current_lh) < 0.05)
-            action.triggered.connect(lambda checked, h=lh: self._set_line_height(h))
-            spacing_group.addAction(action)
-            spacing_menu.addAction(action)
-
-        # Page Width submenu
-        width_menu = view_menu.addMenu("Page Width (Words per line)")
-        width_group = QActionGroup(self)
-        current_width = self._prefs.get("page_width", 750)
-        for width, label in [(600, "Narrow (~60 chars)"), (750, "Medium (~75 chars)"), 
-                             (900, "Wide (~90 chars)"), (1100, "Extra Wide"), (0, "Full Width")]:
-            action = QAction(label, self)
-            action.setCheckable(True)
-            action.setChecked(width == current_width)
-            action.triggered.connect(lambda checked, w=width: self._set_page_width(w))
-            width_group.addAction(action)
-            width_menu.addAction(action)
-
-        view_menu.addSeparator()
-
-        self._pdf_reading_mode_action = QAction("PDF Reading Mode (Extract Text)", self)
-        self._pdf_reading_mode_action.setCheckable(True)
-        self._pdf_reading_mode_action.setChecked(self._prefs.get("pdf_reading_mode", False))
-        self._pdf_reading_mode_action.triggered.connect(self._toggle_pdf_reading_mode)
-        view_menu.addAction(self._pdf_reading_mode_action)
-
-        self._pdf_dark_action = QAction("PDF Dark Mode", self)
-        self._pdf_dark_action.setCheckable(True)
-        self._pdf_dark_action.setChecked(self._prefs.get("pdf_dark_mode", False))
-        self._pdf_dark_action.triggered.connect(self._toggle_pdf_dark_mode)
-        view_menu.addAction(self._pdf_dark_action)
+    def _wire_ribbon_signals(self):
+        tb = self._title_bar
+        rb = self._ribbon
         
-        self._epub_md_action = QAction("EPUB Markdown Extraction Mode", self)
-        self._epub_md_action.setCheckable(True)
-        self._epub_md_action.setChecked(self._prefs.get("epub_markdown_mode", False))
-        self._epub_md_action.triggered.connect(self._toggle_epub_md_mode)
-        view_menu.addAction(self._epub_md_action)
-
-        self._pdf_reset_action = QAction("Reset PDF Settings", self)
-        self._pdf_reset_action.triggered.connect(self._reset_pdf_settings)
-        view_menu.addAction(self._pdf_reset_action)
-
-        view_menu.addSeparator()
-
-        # (Parallel Reading Mode removed in favor of inline columns)
-
-        # Translation Language
-        lang_menu = view_menu.addMenu("Translation Language")
-        lang_group = QActionGroup(self)
-        current_lang = self._prefs.get("translation_lang", "Modern English")
-        for lang in ["Modern English", "Spanish", "German", "French", "Italian", "Simplified Chinese", "Japanese"]:
-            action = QAction(lang, self)
-            action.setCheckable(True)
-            action.setChecked(lang == current_lang)
-            action.triggered.connect(lambda checked, l=lang: self._set_translation_lang(l))
-            lang_group.addAction(action)
-            lang_menu.addAction(action)
-
-        view_menu.addSeparator()
-
-        # Toggle panels
-        toggle_library = QAction("Toggle Library Panel", self)
-        toggle_library.setShortcut("Ctrl+L")
-        toggle_library.triggered.connect(self._toggle_library)
-        view_menu.addAction(toggle_library)
-
-        toggle_sidebar = QAction("Toggle Sidebar", self)
-        toggle_sidebar.setShortcut("Ctrl+B")
-        toggle_sidebar.triggered.connect(self._toggle_sidebar)
-        view_menu.addAction(toggle_sidebar)
-
-        # ═══ TTS Menu ═══
-        tts_menu = menubar.addMenu("TTS")
-
-        play_action = QAction("▶ Play from Cursor / Play Chapter", self)
-        play_action.setShortcut("F5")
-        play_action.triggered.connect(self._tts_play)
-        tts_menu.addAction(play_action)
-
-        stop_action = QAction("⏹ Stop", self)
-        stop_action.setShortcut("F7")
-        stop_action.triggered.connect(self._tts_stop)
-        tts_menu.addAction(stop_action)
-
-        tts_menu.addSeparator()
-
-        # (TTS Target Source removed: TTS now reads from selected column)
-
-        tts_menu.addSeparator()
-
-        voice_action = QAction("Change Voice...", self)
-        read_sel_action = QAction("🗣 Read Selected Text", self)
-        read_sel_action.setShortcut("Ctrl+Shift+S")
-        read_sel_action.triggered.connect(self._tts_read_selection)
-        tts_menu.addAction(read_sel_action)
-
-        tts_menu.addSeparator()
-
-        self._skip_fn_action = QAction("Skip Footnotes [N]", self)
-        self._skip_fn_action.setCheckable(True)
-        self._skip_fn_action.setChecked(self._prefs.get("tts_skip_footnotes", True))
-        self._skip_fn_action.triggered.connect(self._toggle_skip_footnotes)
-        tts_menu.addAction(self._skip_fn_action)
-
-        # TTS Speaker submenu
-        speaker_menu = tts_menu.addMenu("Voice Selection")
-        speaker_group = QActionGroup(self)
-        current_voice = self._prefs.get("tts_voice", "jiang_voice")
+        # Title Bar
+        tb.close_requested.connect(self.close)
+        tb.maximize_requested.connect(lambda: self.showNormal() if self.isMaximized() else self.showMaximized())
+        tb.minimize_requested.connect(self.showMinimized)
         
-        self._auto_next_action = QAction("Auto-Continue Next Chapter", self)
-        self._auto_next_action.setCheckable(True)
-        self._auto_next_action.setChecked(self._prefs.get("tts_auto_next", False))
-        self._auto_next_action.triggered.connect(self._toggle_auto_next)
-        tts_menu.addAction(self._auto_next_action)
-        tts_menu.addSeparator()
+        tb.open_requested.connect(self._on_open_file)
+        tb.prev_chapter_requested.connect(lambda: self._reader._prev_chapter())
+        tb.next_chapter_requested.connect(lambda: self._reader._next_chapter())
         
-        # Add language hints for known voices
-        voice_hints = {
-            "aiden": " (EN)", "ryan": " (EN)", "aria": " (EN)", "sarah": " (EN)",
-            "cora": " (EN)", "lucas": " (EN)", "nova": " (EN)", "oliver": " (EN)",
-            "jiang_voice": " (EN)"
-        }
-        for voice in self._tts.get_available_voices():
-            v_id = voice["id"]
-            hint = voice_hints.get(v_id, "")
-            action = QAction(f"{voice['name']}{hint}", self)
-            action.setCheckable(True)
-            action.setChecked(v_id == current_voice)
-            action.triggered.connect(lambda checked, v=v_id: self._set_tts_voice(v))
-            speaker_group.addAction(action)
-            speaker_menu.addAction(action)
+        def on_chapter_combo(idx):
+            if idx >= 0 and self._current_book:
+                self._reader._load_chapter(idx)
+        tb.chapter_selected.connect(on_chapter_combo)
+        
+        tb.search_requested.connect(self._on_search_requested)
+        tb.toggle_library.connect(self._toggle_library)
+        tb.toggle_sidebar.connect(self._toggle_sidebar)
+        
+        # Ribbon - View
+        rb.theme_btn.setChecked(self._prefs.get("pdf_dark_mode", False))
+        rb.theme_btn.toggled.connect(self._toggle_pdf_dark_mode)
+        
+        rb.pdf_mode_btn.setChecked(self._prefs.get("pdf_reading_mode", False))
+        rb.pdf_mode_btn.toggled.connect(self._toggle_pdf_reading_mode)
+        
+        rb.epub_md_btn.setChecked(self._prefs.get("epub_markdown_mode", False))
+        rb.epub_md_btn.toggled.connect(self._toggle_epub_md_mode)
+        
+        def create_exclusive_menu(btn, options, current_val, callback):
+            from PyQt6.QtWidgets import QMenu
+            from PyQt6.QtGui import QActionGroup
+            menu = QMenu(self)
+            group = QActionGroup(self)
+            for val, label in options:
+                action = menu.addAction(label)
+                action.setCheckable(True)
+                if val == current_val:
+                    action.setChecked(True)
+                group.addAction(action)
+                action.triggered.connect(lambda checked, v=val: callback(v))
+            btn.setMenu(menu)
 
-        # ═══ AI Menu ═══
-        ai_menu = menubar.addMenu("AI")
-
-        explain_action = QAction("💡 Explain Selection", self)
-        explain_action.setShortcut("Ctrl+E")
-        explain_action.triggered.connect(lambda: self._ai._explain())
-        ai_menu.addAction(explain_action)
-
-        translate_action = QAction("🌍 Translate Selection", self)
-        translate_action.setShortcut("Ctrl+T")
-        translate_action.triggered.connect(lambda: self._ai._translate())
-        ai_menu.addAction(translate_action)
-
-        research_action = QAction("🔍 Research Selection", self)
-        research_action.setShortcut("Ctrl+R")
-        research_action.triggered.connect(lambda: self._ai._research())
-        ai_menu.addAction(research_action)
+        # Font popup
+        create_exclusive_menu(
+            rb.font_btn,
+            [(f, f) for f in ["Georgia", "Times New Roman", "Segoe UI", "Inter", "Courier New"]],
+            self._prefs.get("font_family", "Georgia"),
+            self._set_font
+        )
+        
+        create_exclusive_menu(
+            rb.size_btn,
+            [(s, f"{s}px") for s in [14, 16, 18, 20, 24, 28, 32]],
+            self._prefs.get("font_size", 18),
+            self._set_font_size
+        )
+        
+        create_exclusive_menu(
+            rb.spacing_btn,
+            [(1.2, "Tight"), (1.5, "Normal"), (1.8, "Comfortable"), (2.4, "Airy")],
+            self._prefs.get("line_height", 1.8),
+            self._set_line_height
+        )
+        
+        create_exclusive_menu(
+            rb.width_btn,
+            [(600, "Narrow"), (750, "Medium"), (900, "Wide"), (0, "Full Width")],
+            self._prefs.get("page_width", 750),
+            self._set_page_width
+        )
+        
+        # Ribbon - Reading
+        rb.play_btn.clicked.connect(self._tts_play)
+        rb.stop_btn.clicked.connect(self._tts_stop)
+        
+        create_exclusive_menu(
+            rb.voice_btn,
+            [(v["id"], v["name"]) for v in self._tts.get_available_voices()],
+            self._prefs.get("tts_voice", "jiang_voice"),
+            self._set_tts_voice
+        )
+        
+        rb.skip_fn_btn.setChecked(self._prefs.get("tts_skip_footnotes", True))
+        rb.skip_fn_btn.toggled.connect(self._toggle_skip_footnotes)
+        
+        # Ribbon - AI
+        create_exclusive_menu(
+            rb.translate_btn,
+            [(l, l) for l in ["Modern English", "Spanish", "French", "German", "Simplified Chinese", "Japanese"]],
+            self._prefs.get("translation_lang", "Modern English"),
+            self._set_translation_lang
+        )
+        
+        rb.ai_model_btn.clicked.connect(self._toggle_sidebar)
 
     def _setup_statusbar(self) -> None:
         """Create the status bar."""
@@ -487,6 +490,14 @@ class ReaderWindow(QMainWindow):
     # Book Loading
     # ═══════════════════════════════════
 
+    def _on_open_file(self):
+        from PyQt6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Open Book", "", "EPUB Files (*.epub);;PDF Files (*.pdf);;Dante Packages (*.dante *.zip);;All Files (*)"
+        )
+        if path:
+            self._open_book(path)
+
     def _open_book(self, path: str) -> None:
         """Load and display an EPUB book asynchronously."""
         try:
@@ -518,6 +529,15 @@ class ReaderWindow(QMainWindow):
     def _on_book_loaded(self, book_obj, path: str) -> None:
         self._loading_overlay.hide()
         self._current_book = book_obj
+        
+        # Update Title Bar combobox
+        self._title_bar.chapter_combo.blockSignals(True)
+        self._title_bar.chapter_combo.clear()
+        if hasattr(self._current_book, 'get_chapter_count'):
+            for i in range(self._current_book.get_chapter_count()):
+                title = getattr(self._current_book, 'get_chapter_title', lambda x: f"Chapter {x+1}")(i)
+                self._title_bar.chapter_combo.addItem(f"{i+1}. {title}")
+        self._title_bar.chapter_combo.blockSignals(False)
         
         # If it's an EPUB opened in Markdown mode, force it into Reading Mode 
         if path.lower().endswith(".epub") and getattr(self._current_book, 'is_pdf', False):
@@ -558,6 +578,14 @@ class ReaderWindow(QMainWindow):
             self._reader._load_chapter(saved_chapter)
             
         self.setWindowTitle(f"📖 {self._current_book.title}")
+        
+        title = self._current_book.title
+        if len(title) > 50:
+            title = title[:47] + "..."
+        self._title_bar.drag_area.setText(f"📖 {title}")
+        
+        total = self._current_book.get_chapter_count()
+        self._title_bar.chapter_info.setText(f"{saved_chapter+1} / {total}")
         self._ai.set_book_context(self._current_book.title)
         self._statusbar.showMessage(
             f"Loaded: {self._current_book.title} "
@@ -722,9 +750,11 @@ class ReaderWindow(QMainWindow):
         else:
             def on_finished():
                 widget.setMaximumWidth(max_reset)
-                if widget == self._right_tabs:
-                    widget.setMinimumWidth(320)
-                else:
+                if widget == self._sidebar_container:
+                    self._sidebar_container.setMinimumWidth(320)
+                    self._right_tabs.setMinimumWidth(320)
+                    self._right_tabs.setMaximumWidth(16777215)
+                elif widget == self._library:
                     widget.setMinimumWidth(0)
             anim.finished.connect(on_finished)
             
@@ -742,23 +772,36 @@ class ReaderWindow(QMainWindow):
         self._animate_widget_width(self._library, current, target)
 
     def _toggle_sidebar(self) -> None:
-        target = 320 if not self._right_tabs.isVisible() or self._right_tabs.maximumWidth() == 0 else 0
-        current = self._right_tabs.width() if self._right_tabs.isVisible() else 0
-        self._animate_widget_width(self._right_tabs, current, target)
+        target = 320 if not self._sidebar_container.isVisible() or self._sidebar_container.maximumWidth() == 0 else 0
+        current = self._sidebar_container.width() if self._sidebar_container.isVisible() else 0
+        
+        if target > 0:
+            # Opening: lock inner to target width so it slides out
+            self._right_tabs.setFixedWidth(target)
+        else:
+            # Closing: lock inner to current width so it slides in
+            self._right_tabs.setFixedWidth(self._right_tabs.width())
+            
+        self._animate_widget_width(self._sidebar_container, current, target)
 
     def _toggle_focus_mode(self) -> None:
         """Toggle both sidebars simultaneously for distraction-free reading."""
         is_visible = (self._library.isVisible() and self._library.maximumWidth() > 0) or \
-                     (self._right_tabs.isVisible() and self._right_tabs.maximumWidth() > 0)
+                     (self._sidebar_container.isVisible() and self._sidebar_container.maximumWidth() > 0)
                      
         lib_target = 0 if is_visible else 200
         sidebar_target = 0 if is_visible else 320
         
         lib_current = self._library.width() if self._library.isVisible() else 0
-        sidebar_current = self._right_tabs.width() if self._right_tabs.isVisible() else 0
+        sidebar_current = self._sidebar_container.width() if self._sidebar_container.isVisible() else 0
+        
+        if sidebar_target > 0:
+            self._right_tabs.setFixedWidth(sidebar_target)
+        else:
+            self._right_tabs.setFixedWidth(self._right_tabs.width())
         
         self._animate_widget_width(self._library, lib_current, lib_target)
-        self._animate_widget_width(self._right_tabs, sidebar_current, sidebar_target)
+        self._animate_widget_width(self._sidebar_container, sidebar_current, sidebar_target)
 
     def _toggle_pdf_reading_mode(self, checked: bool) -> None:
         self._prefs["pdf_reading_mode"] = checked
@@ -964,6 +1007,13 @@ class ReaderWindow(QMainWindow):
         super().closeEvent(event)
 
     def _on_chapter_changed(self, index: int) -> None:
+        self._title_bar.chapter_combo.blockSignals(True)
+        self._title_bar.chapter_combo.setCurrentIndex(index)
+        self._title_bar.chapter_combo.blockSignals(False)
+        
+        if getattr(self, "_current_book", None):
+            total = self._current_book.get_chapter_count()
+            self._title_bar.chapter_info.setText(f"{index+1} / {total}")
         """Save the current chapter progress for the active EPUB."""
         if not getattr(self, "_current_book", None) or getattr(self._current_book, 'is_pdf', False):
             return

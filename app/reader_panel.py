@@ -210,6 +210,7 @@ class ReaderPanel(QWidget):
         nav_widget = QWidget()
         nav_widget.setLayout(nav_bar)
         nav_widget.setStyleSheet("background-color: #161b22; border-bottom: 1px solid #30363d;")
+        nav_widget.hide()
         layout.addWidget(nav_widget)
 
         # ── Table Translation / Dante Controls ──
@@ -1427,18 +1428,24 @@ class ReaderPanel(QWidget):
         """Show custom right-click context menu with View Source option."""
         menu = QMenu(self)
 
+        import os
+        from PyQt6.QtGui import QIcon
+        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
+
         # Keep standard actions: Copy, Select All
         page = self._web.page()
         copy_action = page.action(QWebEnginePage.WebAction.Copy)
+        copy_action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
         copy_action.setShortcut("Ctrl+C")
         select_all_action = page.action(QWebEnginePage.WebAction.SelectAll)
+        select_all_action.setIcon(QIcon(os.path.join(icon_dir, "select_all.svg")))
         select_all_action.setShortcut("Ctrl+A")
         menu.addAction(copy_action)
         menu.addAction(select_all_action)
         menu.addSeparator()
 
         # Custom: View Page Source
-        source_action = QAction("🔍 View Page Source", self)
+        source_action = QAction(QIcon(os.path.join(icon_dir, "code.svg")), "View Page Source", self)
         source_action.setShortcut("Ctrl+U")
         source_action.triggered.connect(self._open_source_viewer)
         menu.addAction(source_action)
@@ -1448,39 +1455,39 @@ class ReaderPanel(QWidget):
         if selected_text:
             menu.addSeparator()
             
-            read_sel_action = QAction("🗣 Read Selected Text", self)
+            read_sel_action = QAction(QIcon(os.path.join(icon_dir, "read.svg")), "Read Selected Text", self)
             read_sel_action.setShortcut("Ctrl+Shift+S")
             read_sel_action.triggered.connect(lambda: self.read_selection_requested.emit(selected_text))
             menu.addAction(read_sel_action)
             
-            explain_action = QAction("💡 AI Explain", self)
+            explain_action = QAction(QIcon(os.path.join(icon_dir, "explain.svg")), "AI Explain", self)
             explain_action.setShortcut("Ctrl+E")
             explain_action.triggered.connect(self.ai_explain_requested.emit)
             menu.addAction(explain_action)
             
-            translate_action = QAction("🌍 AI Translate", self)
+            translate_action = QAction(QIcon(os.path.join(icon_dir, "translate.svg")), "AI Translate", self)
             translate_action.setShortcut("Ctrl+T")
             translate_action.triggered.connect(self.ai_translate_requested.emit)
             menu.addAction(translate_action)
             
         menu.addSeparator()
-        play_action = QAction("▶ Play from Cursor / Play Chapter", self)
+        play_action = QAction(QIcon(os.path.join(icon_dir, "play.svg")), "Play from Cursor / Play Chapter", self)
         play_action.setShortcut("F5")
         play_action.triggered.connect(self.play_chapter_requested.emit)
         menu.addAction(play_action)
         
-        stop_action = QAction("⏹ Stop TTS", self)
+        stop_action = QAction(QIcon(os.path.join(icon_dir, "stop.svg")), "Stop TTS", self)
         stop_action.setShortcut("F7")
         stop_action.triggered.connect(self.stop_tts_requested.emit)
         menu.addAction(stop_action)
         
         menu.addSeparator()
-        prev_action = QAction("◀ Previous Page", self)
+        prev_action = QAction(QIcon(os.path.join(icon_dir, "prev.svg")), "Previous Page", self)
         prev_action.setShortcut("Left")
         prev_action.triggered.connect(self.prev_chapter_requested.emit)
         menu.addAction(prev_action)
         
-        next_action = QAction("Next Page ▶", self)
+        next_action = QAction(QIcon(os.path.join(icon_dir, "next.svg")), "Next Page", self)
         next_action.setShortcut("Right")
         next_action.triggered.connect(self.next_chapter_requested.emit)
         menu.addAction(next_action)
