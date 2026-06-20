@@ -44,6 +44,15 @@ def main():
     app.setOrganizationName("DanteReader")
     app.setApplicationName("DanteEpubReader")
 
+    # Load application language translations
+    from PyQt6.QtCore import QTranslator
+    app_lang = prefs.get("app_lang", "en")
+    app._translator = QTranslator() # Keep reference
+    translations_path = os.path.join(os.path.dirname(__file__), "..", "translations", f"{app_lang}.qm")
+    if os.path.exists(translations_path):
+        if app._translator.load(translations_path):
+            app.installTranslator(app._translator)
+
     # Apply global dark theme
     app.setStyleSheet(DARK_QSS)
 

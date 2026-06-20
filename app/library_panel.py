@@ -138,7 +138,7 @@ class LibraryPanel(QWidget):
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "library.svg")
         icon_lbl.setPixmap(QIcon(icon_path).pixmap(24, 24))
         
-        header = QLabel(" Library")
+        header = QLabel(self.tr(" Library"))
         header.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
         header.setStyleSheet("color: #c9a96e; background: transparent; padding: 4px;")
         
@@ -167,7 +167,7 @@ class LibraryPanel(QWidget):
 
         # ── Search / Filter ──
         self._search = QLineEdit()
-        self._search.setPlaceholderText("Search books...")
+        self._search.setPlaceholderText(self.tr("Search books..."))
         self._search.setClearButtonEnabled(True)
         self._search.textChanged.connect(self._filter_books)
         layout.addWidget(self._search)
@@ -215,7 +215,7 @@ class LibraryPanel(QWidget):
             
         self._books.clear()
         self._list.clear()
-        self._count_label.setText("Scanning library...")
+        self._count_label.setText(self.tr("Scanning library..."))
 
         self._scanner = LibraryScannerWorker()
         self._scanner.book_found.connect(self._on_book_found)
@@ -253,9 +253,9 @@ class LibraryPanel(QWidget):
         
     def _on_scan_finished(self, count: int) -> None:
         if count == -1:
-            self._count_label.setText("No e-pub directory found")
+            self._count_label.setText(self.tr("No e-pub directory found"))
         else:
-            self._count_label.setText(f"{count} books")
+            self._count_label.setText(f"{count} " + self.tr("books"))
 
     def _filter_books(self, text: str) -> None:
         """Filter visible books by search text."""

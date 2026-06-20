@@ -81,7 +81,7 @@ class AiPanel(QWidget):
         header_icon.setPixmap(QIcon(icon_path).pixmap(24, 24))
         header_layout.addWidget(header_icon)
 
-        header_label = QLabel("AI Companion")
+        header_label = QLabel(self.tr("AI Companion"))
         header_label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
         header_label.setStyleSheet("color: #c9a96e; background: transparent;")
         header_layout.addWidget(header_label)
@@ -93,14 +93,17 @@ class AiPanel(QWidget):
         backend_row = QHBoxLayout()
         backend_row.setSpacing(6)
 
-        backend_label = QLabel("Backend:")
+        backend_label = QLabel(self.tr("Backend:"))
         backend_label.setStyleSheet("color: #8b949e; font-size: 12px; background: transparent;")
         backend_row.addWidget(backend_label)
 
         self._backend_combo = QComboBox()
         for name in self._backends.keys():
-            self._backend_combo.addItem(name)
-        self._backend_combo.setCurrentText("Ollama (Local)")
+            self._backend_combo.addItem(self.tr(name), name)
+        # Find index for Ollama (Local) and set it
+        idx = self._backend_combo.findData("Ollama (Local)")
+        if idx >= 0:
+            self._backend_combo.setCurrentIndex(idx)
         self._backend_combo.currentTextChanged.connect(self._on_backend_changed)
         backend_row.addWidget(self._backend_combo, 1)
 
@@ -109,7 +112,7 @@ class AiPanel(QWidget):
         model_row = QHBoxLayout()
         model_row.setSpacing(6)
 
-        model_label = QLabel("Model:")
+        model_label = QLabel(self.tr("Model:"))
         model_label.setStyleSheet("color: #8b949e; font-size: 12px; background: transparent;")
         model_row.addWidget(model_label)
 
@@ -128,7 +131,7 @@ class AiPanel(QWidget):
         layout.addWidget(self._status_label)
 
         # ── Selected Text Preview ──
-        self._selection_label = QTextEdit("No text selected")
+        self._selection_label = QTextEdit(self.tr("No text selected"))
         self._selection_label.setReadOnly(True)
         self._selection_label.setMinimumHeight(150)
         self._selection_label.setMaximumHeight(250)
@@ -155,21 +158,21 @@ class AiPanel(QWidget):
         from PyQt6.QtGui import QIcon
         icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
 
-        self._btn_explain = QPushButton(" Explain")
+        self._btn_explain = QPushButton(self.tr(" Explain"))
         self._btn_explain.setIcon(QIcon(os.path.join(icon_dir, "explain.svg")))
-        self._btn_explain.setToolTip("Explain the selected text in modern English")
+        self._btn_explain.setToolTip(self.tr("Explain the selected text in modern English"))
         self._btn_explain.clicked.connect(self._explain)
         btn_row.addWidget(self._btn_explain)
 
-        self._btn_translate = QPushButton(" Translate")
+        self._btn_translate = QPushButton(self.tr(" Translate"))
         self._btn_translate.setIcon(QIcon(os.path.join(icon_dir, "translate.svg")))
-        self._btn_translate.setToolTip("Translate to English")
+        self._btn_translate.setToolTip(self.tr("Translate to English"))
         self._btn_translate.clicked.connect(self._translate)
         btn_row.addWidget(self._btn_translate)
 
-        self._btn_search = QPushButton(" Research")
+        self._btn_search = QPushButton(self.tr(" Research"))
         self._btn_search.setIcon(QIcon(os.path.join(icon_dir, "search.svg")))
-        self._btn_search.setToolTip("Search for related content and context")
+        self._btn_search.setToolTip(self.tr("Search for related content and context"))
         self._btn_search.clicked.connect(self._research)
         btn_row.addWidget(self._btn_search)
 
@@ -180,14 +183,14 @@ class AiPanel(QWidget):
         input_row.setSpacing(6)
 
         self._input = QLineEdit()
-        self._input.setPlaceholderText("Ask a question about the selected text...")
+        self._input.setPlaceholderText(self.tr("Ask a question about the selected text..."))
         self._input.returnPressed.connect(self._ask_question)
         self._input.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._input.customContextMenuRequested.connect(lambda pos: self._show_text_context_menu(pos, self._input))
         input_row.addWidget(self._input, 1)
 
-        self._btn_ask = QPushButton("Ask")
-        self._btn_ask.setFixedWidth(60)
+        self._btn_ask = QPushButton(self.tr("Ask"))
+       
         self._btn_ask.clicked.connect(self._ask_question)
         input_row.addWidget(self._btn_ask)
 
@@ -209,18 +212,18 @@ class AiPanel(QWidget):
         """)
         import os
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "ai_model.svg").replace("\\", "/")
+        text = self.tr("Select text in the reader, then use the buttons above<br>or ask a free-form question.")
         self._response.setHtml(
             '<div style="text-align: center; padding: 30px; color: #6e7681;">'
             f'<p><img src="{icon_path}" width="32" height="32"></p>'
-            '<p>Select text in the reader, then use the buttons above<br>'
-            "or ask a free-form question.</p></div>"
+            f'<p>{text}</p></div>'
         )
         self._response.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._response.customContextMenuRequested.connect(lambda pos: self._show_text_context_menu(pos, self._response))
         layout.addWidget(self._response, 1)
 
         # ── Clear button ──
-        self._btn_clear = QPushButton("Clear Chat")
+        self._btn_clear = QPushButton(self.tr("Clear Chat"))
         self._btn_clear.setStyleSheet("font-size: 11px;")
         self._btn_clear.clicked.connect(self._clear_response)
         layout.addWidget(self._btn_clear, alignment=Qt.AlignmentFlag.AlignRight)
@@ -234,14 +237,41 @@ class AiPanel(QWidget):
         import os
         from PyQt6.QtGui import QIcon
         icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
+        
+        actions_to_remove = []
         for action in menu.actions():
-            text = action.text().replace("&", "")
-            if text == "Copy":
+            raw_text = action.text().replace("&", "")
+            text = raw_text.split('\t')[0]
+            
+            if text == "Copy" or text == self.tr("Copy"):
+                shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
+                action.setText(self.tr("Copy") + shortcut)
                 action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
-            elif text == "Select All":
+            elif text == "Select All" or text == self.tr("Select All"):
+                shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
+                action.setText(self.tr("Select All") + shortcut)
                 action.setIcon(QIcon(os.path.join(icon_dir, "select_all.svg")))
-            elif text == "Paste":
+            elif text == "Paste" or text == self.tr("Paste"):
+                shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
+                action.setText(self.tr("Paste") + shortcut)
                 action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
+            elif text == "Undo" or text == self.tr("Undo"):
+                shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
+                action.setText(self.tr("Undo") + shortcut)
+            elif text == "Redo" or text == self.tr("Redo"):
+                shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
+                action.setText(self.tr("Redo") + shortcut)
+            elif text == "Cut" or text == self.tr("Cut"):
+                shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
+                action.setText(self.tr("Cut") + shortcut)
+            elif text == "Delete" or text == self.tr("Delete"):
+                shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
+                action.setText(self.tr("Delete") + shortcut)
+            elif "Copy Link Location" in raw_text:
+                actions_to_remove.append(action)
+                
+        for action in actions_to_remove:
+            menu.removeAction(action)
                 
         menu.exec(widget.mapToGlobal(pos))
         del menu
@@ -250,7 +280,7 @@ class AiPanel(QWidget):
 
     def _init_backends(self) -> None:
         """Probe available backends asynchronously so we don't freeze the UI."""
-        self._status_label.setText("⏳ Checking AI connections...")
+        self._status_label.setText(self.tr("⏳ Checking AI connections..."))
         self._set_buttons_enabled(False)
         
         def worker():
@@ -267,11 +297,12 @@ class AiPanel(QWidget):
             self._active_models[name] = models[0]
             
         # Update the UI if this is the currently selected backend
-        if self._backend_combo.currentText() == name:
-            self._on_backend_changed(name)
+        if self._backend_combo.currentData() == name:
+            self._on_backend_changed()
 
-    def _on_backend_changed(self, backend_name: str) -> None:
+    def _on_backend_changed(self, *args) -> None:
         """Handle backend selector change."""
+        backend_name = self._backend_combo.currentData()
         self._model_combo.blockSignals(True)
         self._model_combo.clear()
         
@@ -293,25 +324,27 @@ class AiPanel(QWidget):
     def _on_model_changed(self, model: str) -> None:
         if not model:
             return
-        backend_name = self._backend_combo.currentText()
+        backend_name = self._backend_combo.currentData()
         self._active_models[backend_name] = model
         self._update_backend_status()
 
     def _update_backend_status(self) -> None:
         """Update status label based on current backend selection."""
-        backend_name = self._backend_combo.currentText()
+        backend_name = self._backend_combo.currentData()
         model = self._model_combo.currentText()
         backend = self._backends.get(backend_name)
 
         if backend and backend.is_available():
             import os
             check_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "check.svg").replace("\\", "/")
-            self._status_label.setText(f"<img src='{check_path}' width='14' height='14'> {backend_name} connected — model: {model}")
+            msg = self.tr("{backend} connected — model: {model}").format(backend=backend_name, model=model)
+            self._status_label.setText(f"<img src='{check_path}' width='14' height='14'> {msg}")
             self._set_buttons_enabled(True)
         else:
             import os
             err_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "error.svg").replace("\\", "/")
-            self._status_label.setText(f"<img src='{err_path}' width='14' height='14'> {backend_name} unavailable. Check connection or API keys.")
+            msg = self.tr("{backend} unavailable. Check connection or API keys.").format(backend=backend_name)
+            self._status_label.setText(f"<img src='{err_path}' width='14' height='14'> {msg}")
             self._set_buttons_enabled(False)
 
     def _set_buttons_enabled(self, enabled: bool) -> None:
@@ -356,8 +389,10 @@ class AiPanel(QWidget):
     def _explain(self) -> None:
         if not self._selected_text:
             return
+        from app.config import load_prefs
+        target_lang = load_prefs().get("translation_lang", "Modern English")
         prompt = (
-            f"Explain the following passage from {self._book_context} in plain, modern English. "
+            f"Explain the following passage from {self._book_context} in plain, {target_lang}. "
             "Break down any complex metaphors or archaic phrasing. "
             "Provide historical and literary context where relevant:\n\n"
             f'"{self._selected_text}"'
@@ -367,9 +402,11 @@ class AiPanel(QWidget):
     def _translate(self) -> None:
         if not self._selected_text:
             return
+        from app.config import load_prefs
+        target_lang = load_prefs().get("translation_lang", "Modern English")
         prompt = (
-            "Translate the following text into modern English. "
-            "If it's already in English but uses archaic language, modernize it. "
+            f"Translate the following text into {target_lang}. "
+            "If it's already in the target language but uses archaic language, modernize it. "
             "Preserve the poetic structure if applicable:\n\n"
             f'"{self._selected_text}"'
         )
@@ -378,8 +415,11 @@ class AiPanel(QWidget):
     def _research(self) -> None:
         if not self._selected_text:
             return
+        from app.config import load_prefs
+        target_lang = load_prefs().get("translation_lang", "Modern English")
         prompt = (
             f"You are a research assistant for studying {self._book_context}. "
+            f"Please respond in {target_lang}. "
             "Analyze this passage and provide:\n"
             "1. Historical context and references\n"
             "2. Key characters or figures mentioned\n"
@@ -396,13 +436,17 @@ class AiPanel(QWidget):
 
         self._input.clear()
         
+        from app.config import load_prefs
+        target_lang = load_prefs().get("translation_lang", "Modern English")
+        
         if self._selected_text:
             prompt = (
                 f"Context from {self._book_context}:\n\"{self._selected_text}\"\n\n"
-                f"Question: {question}"
+                f"Question: {question}\n\n"
+                f"Please respond in {target_lang}."
             )
         else:
-            prompt = f"Regarding {self._book_context}: {question}"
+            prompt = f"Regarding {self._book_context}: {question}\nPlease respond in {target_lang}."
             
         self._send_prompt(prompt)
 
@@ -411,26 +455,28 @@ class AiPanel(QWidget):
         if self._is_processing:
             return
 
-        backend = self._backend_combo.currentText()
+        backend_key = self._backend_combo.currentData()
+        backend = self._backends.get(backend_key)
         model = self._model_combo.currentText()
         if not model:
-            self._display_error("Please select a model first.")
+            self._display_error(self.tr("Please select a model first."))
             return
 
-        if "Gemini" in backend and not self._backends.get(backend).is_available():
-            self._display_error("Gemini client not initialized. Check your API key.")
+        if backend_key == "Gemini (Cloud)" and not backend.is_available():
+            self._display_error(self.tr("Gemini client not initialized. Check your API key."))
             return
 
         self._is_processing = True
         self._set_buttons_enabled(False)
-        self._status_label.setText("⏳ Thinking...")
+        self._status_label.setText(self.tr("⏳ Thinking..."))
+        msg = self.tr("⏳ Generating response...")
         self._response.setHtml(
             '<div style="color: #c9a96e; padding: 12px;">'
-            "⏳ Generating response...</div>"
+            f'{msg}</div>'
         )
 
         thread = threading.Thread(
-            target=self._worker, args=(prompt, backend, model), daemon=True
+            target=self._worker, args=(prompt, backend_key, model), daemon=True
         )
         thread.start()
 
@@ -475,7 +521,7 @@ class AiPanel(QWidget):
         )
         self._is_processing = False
         self._set_buttons_enabled(True)
-        self._status_label.setText(f"<img src='{err_path}' width='14' height='14'> Last request failed")
+        self._status_label.setText(f"<img src='{err_path}' width='14' height='14'> " + self.tr("Last request failed"))
 
     def _format_response(self, text: str) -> str:
         """Convert markdown response to styled HTML."""
@@ -505,14 +551,14 @@ class AiPanel(QWidget):
         """Clear the response area."""
         import os
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "ai_model.svg").replace("\\", "/")
+        text = self.tr("Select text in the reader, then use the buttons above<br>or ask a free-form question.")
         self._response.setHtml(
             '<div style="text-align: center; padding: 30px; color: #6e7681;">'
             f'<p><img src="{icon_path}" width="32" height="32"></p>'
-            '<p>Select text in the reader, then use the buttons above<br>'
-            "or ask a free-form question.</p></div>"
+            f'<p>{text}</p></div>'
         )
         self._selected_text = ""
-        self._selection_label.setText("No text selected")
+        self._selection_label.setText(self.tr("No text selected"))
         self._selection_label.setStyleSheet("""
             color: #8b949e;
             background-color: #1c2333;

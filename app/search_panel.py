@@ -29,12 +29,12 @@ class SearchPanel(QWidget):
         icon_lbl.setPixmap(QIcon(icon_path).pixmap(20, 20))
         header_layout.addWidget(icon_lbl)
         
-        self._title_label = QLabel(" Search Results")
+        self._title_label = QLabel(self.tr(" Search Results"))
         self._title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6e1d8; background: transparent;")
         header_layout.addWidget(self._title_label)
         header_layout.addStretch()
 
-        self._clear_btn = QPushButton("Clear")
+        self._clear_btn = QPushButton(self.tr("Clear"))
         self._clear_btn.setStyleSheet("""
             QPushButton {
                 background: transparent;
@@ -50,7 +50,7 @@ class SearchPanel(QWidget):
 
         layout.addLayout(header_layout)
 
-        self._status_label = QLabel("Type a query in the top bar to search.")
+        self._status_label = QLabel(self.tr("Type a query in the top bar to search."))
         self._status_label.setStyleSheet("color: #8b949e; font-style: italic; background: transparent;")
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
@@ -81,13 +81,13 @@ class SearchPanel(QWidget):
 
     def show_loading(self, query: str):
         self._current_query = query
-        self._status_label.setText(f"Searching for '{query}'...")
+        self._status_label.setText(self.tr("Searching for '{query}'...").format(query=query))
         self._status_label.show()
         self._list_widget.clear()
         self._clear_btn.hide()
 
     def show_error(self, error: str):
-        self._status_label.setText(f"Error: {error}")
+        self._status_label.setText(self.tr("Error: {error}").format(error=error))
         self._status_label.show()
 
     def load_results(self, results: list, query: str):
@@ -95,7 +95,7 @@ class SearchPanel(QWidget):
         self._list_widget.clear()
         
         if not results:
-            self._status_label.setText(f"No results found for '{query}'.")
+            self._status_label.setText(self.tr("No results found for '{query}'.").format(query=query))
             self._status_label.show()
             self._clear_btn.hide()
             return
@@ -125,7 +125,7 @@ class SearchPanel(QWidget):
     def clear_results(self):
         self._list_widget.clear()
         self._current_query = ""
-        self._status_label.setText("Type a query in the top bar to search.")
+        self._status_label.setText(self.tr("Type a query in the top bar to search."))
         self._status_label.show()
         self._clear_btn.hide()
         self.clear_requested.emit()

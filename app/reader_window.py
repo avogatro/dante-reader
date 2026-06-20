@@ -121,7 +121,7 @@ class ReaderWindow(QMainWindow):
         QTimer.singleShot(500, self._init_media_player)
         self._current_media_id = None
 
-        self.setWindowTitle("Dante EPUB Reader")
+        self.setWindowTitle(self.tr("Dante EPUB Reader"))
         from PyQt6.QtCore import Qt
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowSystemMenuHint | Qt.WindowType.WindowMinMaxButtonsHint)
         self.setMinimumSize(1000, 600)
@@ -165,9 +165,9 @@ class ReaderWindow(QMainWindow):
         from PyQt6.QtGui import QIcon
         icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
         self._right_tabs = QTabWidget()
-        self._right_tabs.addTab(self._ai, QIcon(os.path.join(icon_dir, "ai_model.svg")), " AI Companion")
-        self._right_tabs.addTab(self._footnotes_panel, QIcon(os.path.join(icon_dir, "footnotes.svg")), " Footnotes")
-        self._right_tabs.addTab(self._search_panel, QIcon(os.path.join(icon_dir, "search.svg")), " Search")
+        self._right_tabs.addTab(self._ai, QIcon(os.path.join(icon_dir, "ai_model.svg")), self.tr(" AI Companion"))
+        self._right_tabs.addTab(self._footnotes_panel, QIcon(os.path.join(icon_dir, "footnotes.svg")), self.tr(" Footnotes"))
+        self._right_tabs.addTab(self._search_panel, QIcon(os.path.join(icon_dir, "search.svg")), self.tr(" Search"))
         self._right_tabs.setMinimumWidth(320)
         
         # Add a right-aligned close button to the tab bar
@@ -227,7 +227,7 @@ class ReaderWindow(QMainWindow):
         self.setCentralWidget(main_widget)
 
         # ── Loading Overlay ──
-        self._loading_overlay = QLabel("Loading Book...", self)
+        self._loading_overlay = QLabel(self.tr("Loading Book..."), self)
         self._loading_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._loading_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 180); color: white; font-size: 24px; border-radius: 10px; padding: 20px;")
         self._loading_overlay.hide()
@@ -316,6 +316,7 @@ class ReaderWindow(QMainWindow):
         tb.toggle_library.connect(self._toggle_library)
         tb.toggle_sidebar.connect(self._toggle_sidebar)
         tb.scale_requested.connect(self._on_scale_requested)
+        tb.lang_requested.connect(self._on_lang_requested)
         
         # Ribbon - View
         rb.theme_btn.setChecked(self._prefs.get("pdf_dark_mode", False))
@@ -358,14 +359,14 @@ class ReaderWindow(QMainWindow):
         
         create_exclusive_menu(
             rb.spacing_btn,
-            [(1.2, "Tight"), (1.5, "Normal"), (1.8, "Comfortable"), (2.4, "Airy")],
+            [(1.2, self.tr("Tight")), (1.5, self.tr("Normal")), (1.8, self.tr("Comfortable")), (2.4, self.tr("Airy"))],
             self._prefs.get("line_height", 1.8),
             self._set_line_height
         )
         
         create_exclusive_menu(
             rb.width_btn,
-            [(600, "Narrow"), (750, "Medium"), (900, "Wide"), (0, "Full Width")],
+            [(600, self.tr("Narrow")), (750, self.tr("Medium")), (900, self.tr("Wide")), (0, self.tr("Full Width"))],
             self._prefs.get("page_width", 750),
             self._set_page_width
         )
@@ -385,20 +386,36 @@ class ReaderWindow(QMainWindow):
         rb.skip_fn_btn.toggled.connect(self._toggle_skip_footnotes)
         
         # Ribbon - AI
+        native_names = {
+            "Modern English": "English",
+            "Spanish": "Español",
+            "French": "Français",
+            "German": "Deutsch",
+            "Simplified Chinese": "简体中文",
+            "Japanese": "日本語"
+        }
+        lang_names = {
+            "Modern English": self.tr("Modern English"),
+            "Spanish": self.tr("Spanish"),
+            "French": self.tr("French"),
+            "German": self.tr("German"),
+            "Simplified Chinese": self.tr("Simplified Chinese"),
+            "Japanese": self.tr("Japanese")
+        }
         create_exclusive_menu(
             rb.translate_btn,
-            [(l, l) for l in ["Modern English", "Spanish", "French", "German", "Simplified Chinese", "Japanese"]],
+            [(l, f"{lang_names[l]} | {native_names[l]}") for l in ["Modern English", "Spanish", "French", "German", "Simplified Chinese", "Japanese"]],
             self._prefs.get("translation_lang", "Modern English"),
             self._set_translation_lang
         )
         
-        rb.ai_model_btn.clicked.connect(self._toggle_sidebar)
+        rb.ai_model_btn.clicked.connect(self._toggle_ai_panel)
 
     def _setup_statusbar(self) -> None:
         """Create the status bar."""
         self._statusbar = QStatusBar()
         self.setStatusBar(self._statusbar)
-        self._statusbar.showMessage("Ready — Double-click a book to start reading")
+        self._statusbar.showMessage(self.tr("Ready — Double-click a book to start reading"))
 
     def _connect_signals(self) -> None:
         """Wire up all inter-panel signals."""
@@ -448,7 +465,7 @@ class ReaderWindow(QMainWindow):
 
         # Reader → Window toggle
         self._reader.library_toggle_requested.connect(self._toggle_library)
-        self._reader.ai_toggle_requested.connect(self._toggle_sidebar)
+        self._reader.ai_toggle_requested.connect(self._toggle_ai_panel)
         self._reader.focus_toggle_requested.connect(self._toggle_focus_mode)
         self._reader.search_requested.connect(self._on_search_requested)
         
@@ -465,7 +482,7 @@ class ReaderWindow(QMainWindow):
             lambda idx, text: self._reader.highlight_sentence(text)
         )
         self._tts.error.connect(
-            lambda e: self._statusbar.showMessage(f"TTS Error: {e}")
+            lambda e: self._statusbar.showMessage(self.tr("TTS Error: ") + str(e))
         )
 
     def _apply_prefs(self) -> None:
@@ -486,7 +503,12 @@ class ReaderWindow(QMainWindow):
     def _on_scale_requested(self, scale: float) -> None:
         self._prefs["ui_scale"] = scale
         save_prefs(self._prefs)
-        QMessageBox.information(self, "Restart Required", f"UI Scale set to {int(scale*100)}%.\nPlease restart the application for the changes to fully take effect.")
+        QMessageBox.information(self, self.tr("Restart Required"), self.tr("UI Scale set to {scale}%.\nPlease restart the application for the changes to fully take effect.").format(scale=int(scale*100)))
+
+    def _on_lang_requested(self, lang_code: str) -> None:
+        self._prefs["app_lang"] = lang_code
+        save_prefs(self._prefs)
+        QMessageBox.information(self, self.tr("Restart Required"), self.tr("Application language set.\nPlease restart the application for the changes to fully take effect."))
 
     # ═══════════════════════════════════
     # Book Loading
@@ -495,7 +517,7 @@ class ReaderWindow(QMainWindow):
     def _on_open_file(self):
         from PyQt6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getOpenFileName(
-            self, "Open Book", "", "EPUB Files (*.epub);;PDF Files (*.pdf);;Dante Packages (*.dante *.zip);;All Files (*)"
+            self, self.tr("Open Book"), "", self.tr("EPUB Files (*.epub);;PDF Files (*.pdf);;Dante Packages (*.dante *.zip);;All Files (*)")
         )
         if path:
             self._open_book(path)
@@ -503,7 +525,7 @@ class ReaderWindow(QMainWindow):
     def _open_book(self, path: str) -> None:
         """Load and display an EPUB book asynchronously."""
         try:
-            self._statusbar.showMessage(f"Loading: {path}...")
+            self._statusbar.showMessage(self.tr("Loading: {path}...").format(path=path))
             
             use_pymupdf = path.lower().endswith(".pdf")
             if path.lower().endswith(".epub") and self._prefs.get("epub_markdown_mode", False):
@@ -525,8 +547,8 @@ class ReaderWindow(QMainWindow):
 
     def _on_book_load_error(self, error_msg: str) -> None:
         self._loading_overlay.hide()
-        self._statusbar.showMessage(f"Error loading book: {error_msg}")
-        QMessageBox.warning(self, "Load Error", f"Could not load book:\n{error_msg}")
+        self._statusbar.showMessage(self.tr("Error loading book: {error}").format(error=error_msg))
+        QMessageBox.warning(self, self.tr("Load Error"), self.tr("Could not load book:\n{error}").format(error=error_msg))
 
     def _on_book_loaded(self, book_obj, path: str) -> None:
         self._loading_overlay.hide()
@@ -579,7 +601,7 @@ class ReaderWindow(QMainWindow):
         if saved_chapter > 0 and saved_chapter < self._current_book.get_chapter_count():
             self._reader._load_chapter(saved_chapter)
             
-        self.setWindowTitle(f"{self._current_book.title} - Dante Reader")
+        self.setWindowTitle(f"{self._current_book.title} - " + self.tr("Dante Reader"))
         
         title = self._current_book.title
         if len(title) > 50:
@@ -590,8 +612,10 @@ class ReaderWindow(QMainWindow):
         self._title_bar.chapter_info.setText(f"{saved_chapter+1} / {total}")
         self._ai.set_book_context(self._current_book.title)
         self._statusbar.showMessage(
-            f"Loaded: {self._current_book.title} "
-            f"({self._current_book.get_chapter_count()} chapters)"
+            self.tr("Loaded: {title} ({count} chapters)").format(
+                title=self._current_book.title,
+                count=self._current_book.get_chapter_count()
+            )
         )
 
         # Save as last book
@@ -608,7 +632,7 @@ class ReaderWindow(QMainWindow):
             self._current_book.language = lang
         self._prefs.setdefault("book_languages", {})[path] = lang
         save_prefs(self._prefs)
-        self._statusbar.showMessage(f"Detected book language: {lang}", 4000)
+        self._statusbar.showMessage(self.tr("Detected book language: {lang}").format(lang=lang), 4000)
 
     def _on_footnote_requested(self, foot_id: str) -> None:
         target = 320
@@ -679,20 +703,19 @@ class ReaderWindow(QMainWindow):
             backend = self._ai._backends.get(backend_name)
             
             if not backend or not model_name:
-                self._statusbar.showMessage(f"Dictionary: No offline definition found for '{word}' and no AI available.")
+                self._statusbar.showMessage(self.tr("Dictionary: No offline definition found for '{word}' and no AI available.").format(word=word))
                 return
                 
-            QToolTip.showText(pos, f"<i>Asking AI about '{word}'...</i>")
+            QToolTip.showText(pos, self.tr("<i>Asking AI about '{word}'...</i>").format(word=word))
             
             # Keep reference to avoid garbage collection
             self._dict_worker = DictionaryLLMWorker(backend, model_name, word, source_lang, target_lang, self)
             
-            # Using default argument trick in lambda to capture `pos` and `word` accurately
             self._dict_worker.finished_definition.connect(
-                lambda result, p=pos, w=word: QToolTip.showText(p, f"<div style='margin-bottom: 4px; font-size: 14px;'><b>{w}</b> (AI)</div><div style='font-size: 12px;'>{result}</div>")
+                lambda result, p=pos, w=word: QToolTip.showText(p, f"<div style='margin-bottom: 4px; font-size: 14px;'><b>{w}</b> (" + self.tr("AI") + f")</div><div style='font-size: 12px;'>{result}</div>")
             )
             self._dict_worker.error.connect(
-                lambda e: self._statusbar.showMessage(f"AI Dictionary Error: {e}", 3000)
+                lambda e: self._statusbar.showMessage(self.tr("AI Dictionary Error: {error}").format(error=str(e)), 3000)
             )
             self._dict_worker.start()
 
@@ -705,7 +728,7 @@ class ReaderWindow(QMainWindow):
         self._last_selected_text = text
         self._ai.set_selected_text(text)
         self._statusbar.showMessage(
-            f"Selected {len(text)} characters — use AI panel or TTS to read"
+            self.tr("Selected {length} characters — use AI panel or TTS to read").format(length=len(text))
         )
 
     # ═══════════════════════════════════
@@ -785,6 +808,17 @@ class ReaderWindow(QMainWindow):
             self._right_tabs.setFixedWidth(self._right_tabs.width())
             
         self._animate_widget_width(self._sidebar_container, current, target)
+
+    def _toggle_ai_panel(self) -> None:
+        """Toggle the sidebar, but ensure it opens to the AI tab."""
+        if self._sidebar_container.maximumWidth() > 0 and self._right_tabs.currentWidget() != self._ai:
+            # Already open, just switch tabs
+            self._right_tabs.setCurrentWidget(self._ai)
+        else:
+            # Either closed (so toggle it open), or already on AI tab (so toggle it closed)
+            if self._sidebar_container.maximumWidth() == 0:
+                self._right_tabs.setCurrentWidget(self._ai)
+            self._toggle_sidebar()
 
     def _toggle_focus_mode(self) -> None:
         """Toggle both sidebars simultaneously for distraction-free reading."""

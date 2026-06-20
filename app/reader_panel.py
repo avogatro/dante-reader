@@ -50,7 +50,7 @@ class SourceViewerWindow(QMainWindow):
                  css_sheets: list[tuple[str, str]], chapter_title: str,
                  parent=None):
         super().__init__(parent)
-        self.setWindowTitle(f"Source — {chapter_title}")
+        self.setWindowTitle(self.tr("Source — {chapter}").format(chapter=chapter_title))
         self.resize(900, 700)
 
         tabs = QTabWidget()
@@ -58,21 +58,21 @@ class SourceViewerWindow(QMainWindow):
 
         # Tab 1: Rendered HTML (with injected styles and bridge)
         rendered_edit = self._make_editor(rendered_html, "html")
-        tabs.addTab(rendered_edit, "Rendered HTML")
+        tabs.addTab(rendered_edit, self.tr("Rendered HTML"))
 
         # Tab 2: Original EPUB HTML (before our injections)
         original_edit = self._make_editor(original_html, "html")
-        tabs.addTab(original_edit, "Original EPUB HTML")
+        tabs.addTab(original_edit, self.tr("Original EPUB HTML"))
 
         # Tab 3+: CSS stylesheets from the EPUB
         if css_sheets:
             for name, css_content in css_sheets:
                 css_edit = self._make_editor(css_content, "css")
                 short_name = name.rsplit("/", 1)[-1] if "/" in name else name
-                tabs.addTab(css_edit, f"CSS: {short_name}")
+                tabs.addTab(css_edit, self.tr("CSS: {name}").format(name=short_name))
         else:
-            no_css = self._make_editor("/* No CSS stylesheets found in this EPUB */", "css")
-            tabs.addTab(no_css, "CSS")
+            no_css = self._make_editor(self.tr("/* No CSS stylesheets found in this EPUB */"), "css")
+            tabs.addTab(no_css, self.tr("CSS"))
 
     def _make_editor(self, content: str, lang: str) -> QPlainTextEdit:
         """Create a read-only code editor widget."""
@@ -165,17 +165,17 @@ class ReaderPanel(QWidget):
         nav_bar.setContentsMargins(12, 6, 12, 6)
         nav_bar.setSpacing(8)
 
-        self._btn_toggle_lib = QPushButton("📚 Library")
+        self._btn_toggle_lib = QPushButton(self.tr("📚 Library"))
         self._btn_toggle_lib.clicked.connect(self.library_toggle_requested.emit)
         nav_bar.addWidget(self._btn_toggle_lib)
 
         nav_bar.addSpacing(10)
-        self._btn_prev = QPushButton("◀ Prev")
+        self._btn_prev = QPushButton(self.tr("◀ Prev"))
         self._btn_prev.setFixedWidth(80)
         self._btn_prev.clicked.connect(self._prev_chapter)
         nav_bar.addWidget(self._btn_prev)
 
-        self._btn_next = QPushButton("Next ▶")
+        self._btn_next = QPushButton(self.tr("Next ▶"))
         self._btn_next.setFixedWidth(80)
         self._btn_next.clicked.connect(self._next_chapter)
         nav_bar.addWidget(self._btn_next)
@@ -191,19 +191,19 @@ class ReaderPanel(QWidget):
         nav_bar.addWidget(self._chapter_combo, 1)
 
         self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText("Search book...")
+        self._search_input.setPlaceholderText(self.tr("Search book..."))
         self._search_input.setMinimumWidth(250)
         self._search_input.returnPressed.connect(
             lambda: self.search_requested.emit(self._search_input.text().strip()) if self._search_input.text().strip() else None
         )
         nav_bar.addWidget(self._search_input,1)
         nav_bar.addStretch()
-        self._btn_toggle_ai = QPushButton("✨ AI")
+        self._btn_toggle_ai = QPushButton(self.tr("✨ AI"))
         self._btn_toggle_ai.clicked.connect(self.ai_toggle_requested.emit)
         nav_bar.addWidget(self._btn_toggle_ai)
         
-        self._btn_focus = QPushButton("📖 Focus")
-        self._btn_focus.setToolTip("Toggle both sidebars for distraction-free reading")
+        self._btn_focus = QPushButton(self.tr("📖 Focus"))
+        self._btn_focus.setToolTip(self.tr("Toggle both sidebars for distraction-free reading"))
         self._btn_focus.clicked.connect(self.focus_toggle_requested.emit)
         nav_bar.addWidget(self._btn_focus)
 
@@ -226,17 +226,17 @@ class ReaderPanel(QWidget):
         
         self._dynamic_checkboxes = {}
         
-        self._btn_translate_page = QPushButton("AI: Translate Page")
+        self._btn_translate_page = QPushButton(self.tr("AI: Translate Page"))
   
         self._btn_translate_page.clicked.connect(self._translate_visible_page)
         self._table_nav_bar.addWidget(self._btn_translate_page)
         
         self._table_nav_bar.addStretch()
         
-        self._label_tts= QLabel("TTS:")
+        self._label_tts= QLabel(self.tr("TTS:"))
         self._table_nav_bar.addWidget(self._label_tts)
         self._table_tts_combo = QComboBox()
-        self._table_tts_combo.addItems(["Original", "AI Translation"])
+        self._table_tts_combo.addItems([self.tr("Original"), self.tr("AI Translation")])
         self._table_nav_bar.addWidget(self._table_tts_combo)
         
         self._table_controls_widget = QWidget()
@@ -388,13 +388,13 @@ class ReaderPanel(QWidget):
         
         if needed_blocks:
             if hasattr(self, "_btn_translate_page"):
-                self._btn_translate_page.setText("⏳ Translating...")
+                self._btn_translate_page.setText(self.tr("⏳ Translating..."))
                 self._btn_translate_page.setEnabled(False)
             self.translation_requested.emit(needed_blocks)
 
     def _on_chapter_translated(self, index: int):
         if hasattr(self, "_btn_translate_page"):
-            self._btn_translate_page.setText("AI: Translate Page")
+            self._btn_translate_page.setText(self.tr("AI: Translate Page"))
             self._btn_translate_page.setEnabled(True)
         if index == self._current_chapter and self._translation_manager:
             translations = self._translation_manager.get_chapter(index)
@@ -452,10 +452,10 @@ class ReaderPanel(QWidget):
 
     def _on_translation_error(self, index: int, error_msg: str):
         if hasattr(self, "_btn_translate_page"):
-            self._btn_translate_page.setText("🌍 Translate Page")
+            self._btn_translate_page.setText(self.tr("AI: Translate Page"))
             self._btn_translate_page.setEnabled(True)
         from PyQt6.QtWidgets import QMessageBox
-        QMessageBox.critical(self, "Translation Error", f"Failed to translate chapter {index}:\n\n{error_msg}")
+        QMessageBox.critical(self, self.tr("Translation Error"), self.tr("Failed to translate chapter {index}:\n\n{error}").format(index=index, error=error_msg))
 
     def _on_page_load_finished(self, ok: bool) -> None:
         # If it's a PDF, apply the dark mode preference instantly upon load
@@ -559,13 +559,13 @@ class ReaderPanel(QWidget):
                 self._table_tts_combo.setCurrentIndex(0)
             self._table_tts_combo.blockSignals(False)
         else:
-            self._chk_col_original = QCheckBox("Original")
+            self._chk_col_original = QCheckBox(self.tr("Original"))
             self._chk_col_original.setStyleSheet("background: transparent; padding: 1px 1px;")
             self._chk_col_original.setChecked(True)
             self._chk_col_original.stateChanged.connect(self._update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_original)
             
-            self._chk_col_translation = QCheckBox("AI Translation")
+            self._chk_col_translation = QCheckBox(self.tr("AI Translation"))
             self._chk_col_translation.setStyleSheet("background: transparent; padding: 1px 1px;")
             self._chk_col_translation.setChecked(False)
             self._chk_col_translation.stateChanged.connect(self._update_table_layout)
@@ -576,8 +576,8 @@ class ReaderPanel(QWidget):
             
             self._table_tts_combo.blockSignals(True)
             self._table_tts_combo.clear()
-            self._table_tts_combo.addItems(["Original", "AI Translation"])
-            self._table_tts_combo.setCurrentText("Original")
+            self._table_tts_combo.addItems([self.tr("Original"), self.tr("AI Translation")])
+            self._table_tts_combo.setCurrentText(self.tr("Original"))
             self._table_tts_combo.blockSignals(False)
                 
         self._table_controls_widget.show()
@@ -1442,9 +1442,11 @@ class ReaderPanel(QWidget):
         # Keep standard actions: Copy, Select All
         page = self._web.page()
         copy_action = page.action(QWebEnginePage.WebAction.Copy)
+        copy_action.setText(self.tr("Copy") + "\tCtrl+C")
         copy_action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
         copy_action.setShortcut("Ctrl+C")
         select_all_action = page.action(QWebEnginePage.WebAction.SelectAll)
+        select_all_action.setText(self.tr("Select All") + "\tCtrl+A")
         select_all_action.setIcon(QIcon(os.path.join(icon_dir, "select_all.svg")))
         select_all_action.setShortcut("Ctrl+A")
         menu.addAction(copy_action)
@@ -1452,7 +1454,7 @@ class ReaderPanel(QWidget):
         menu.addSeparator()
 
         # Custom: View Page Source
-        source_action = QAction(QIcon(os.path.join(icon_dir, "code.svg")), "View Page Source", self)
+        source_action = QAction(QIcon(os.path.join(icon_dir, "code.svg")), self.tr("View Page Source"), self)
         source_action.setShortcut("Ctrl+U")
         source_action.triggered.connect(self._open_source_viewer)
         menu.addAction(source_action)
@@ -1462,39 +1464,39 @@ class ReaderPanel(QWidget):
         if selected_text:
             menu.addSeparator()
             
-            read_sel_action = QAction(QIcon(os.path.join(icon_dir, "read.svg")), "Read Selected Text", self)
+            read_sel_action = QAction(QIcon(os.path.join(icon_dir, "read.svg")), self.tr("Read Selected Text"), self)
             read_sel_action.setShortcut("Ctrl+Shift+S")
             read_sel_action.triggered.connect(lambda: self.read_selection_requested.emit(selected_text))
             menu.addAction(read_sel_action)
             
-            explain_action = QAction(QIcon(os.path.join(icon_dir, "explain.svg")), "AI Explain", self)
+            explain_action = QAction(QIcon(os.path.join(icon_dir, "explain.svg")), self.tr("AI Explain"), self)
             explain_action.setShortcut("Ctrl+E")
             explain_action.triggered.connect(self.ai_explain_requested.emit)
             menu.addAction(explain_action)
             
-            translate_action = QAction(QIcon(os.path.join(icon_dir, "translate.svg")), "AI Translate", self)
+            translate_action = QAction(QIcon(os.path.join(icon_dir, "translate.svg")), self.tr("AI Translate"), self)
             translate_action.setShortcut("Ctrl+T")
             translate_action.triggered.connect(self.ai_translate_requested.emit)
             menu.addAction(translate_action)
             
         menu.addSeparator()
-        play_action = QAction(QIcon(os.path.join(icon_dir, "play.svg")), "Play from Cursor / Play Chapter", self)
+        play_action = QAction(QIcon(os.path.join(icon_dir, "play.svg")), self.tr("Play from Cursor / Play Chapter"), self)
         play_action.setShortcut("F5")
         play_action.triggered.connect(self.play_chapter_requested.emit)
         menu.addAction(play_action)
         
-        stop_action = QAction(QIcon(os.path.join(icon_dir, "stop.svg")), "Stop TTS", self)
+        stop_action = QAction(QIcon(os.path.join(icon_dir, "stop.svg")), self.tr("Stop TTS"), self)
         stop_action.setShortcut("F7")
         stop_action.triggered.connect(self.stop_tts_requested.emit)
         menu.addAction(stop_action)
         
         menu.addSeparator()
-        prev_action = QAction(QIcon(os.path.join(icon_dir, "prev.svg")), "Previous Page", self)
+        prev_action = QAction(QIcon(os.path.join(icon_dir, "prev.svg")), self.tr("Previous Page"), self)
         prev_action.setShortcut("Left")
         prev_action.triggered.connect(self.prev_chapter_requested.emit)
         menu.addAction(prev_action)
         
-        next_action = QAction(QIcon(os.path.join(icon_dir, "next.svg")), "Next Page", self)
+        next_action = QAction(QIcon(os.path.join(icon_dir, "next.svg")), self.tr("Next Page"), self)
         next_action.setShortcut("Right")
         next_action.triggered.connect(self.next_chapter_requested.emit)
         menu.addAction(next_action)
@@ -1508,17 +1510,17 @@ class ReaderPanel(QWidget):
 
         def on_html(rend_html: str):
             chapter = self._book.get_chapter(self._current_chapter)
-            chapter_title = f"Chapter {self._current_chapter}"
+            chapter_title = self.tr("Chapter {index}").format(index=self._current_chapter)
             orig_html = self._last_original_html
             css_sheets = []
 
             if getattr(self._book, 'is_pdf', False):
-                chapter_title = f"Page {self._current_chapter + 1}"
+                chapter_title = self.tr("Page {index}").format(index=self._current_chapter + 1)
                 if getattr(self._book, '_reading_mode', False):
                     if isinstance(chapter, str):
                         orig_html = chapter
                 else:
-                    orig_html = "<!-- PDF.js Native Viewer -->"
+                    orig_html = self.tr("<!-- PDF.js Native Viewer -->")
             else:
                 if chapter and hasattr(chapter, 'title'):
                     chapter_title = chapter.title
