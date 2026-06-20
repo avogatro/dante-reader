@@ -173,15 +173,15 @@ class ReaderWindow(QMainWindow):
         # Add a right-aligned close button to the tab bar
         corner_widget = QWidget(self)
         corner_layout = QHBoxLayout(corner_widget)
-        corner_layout.setContentsMargins(0, 0, 8, 0)
-        
+        corner_layout.setContentsMargins(0, 0, 4, 4)
+    
         from PyQt6.QtGui import QIcon
         import os
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "close.svg")
         close_btn = QPushButton()
         close_btn.setIcon(QIcon(icon_path))
         close_btn.setFixedSize(28, 28)
-        close_btn.setStyleSheet("QPushButton { border: none; background: transparent; padding: 4px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
+        close_btn.setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
         close_btn.clicked.connect(self._toggle_sidebar)
         
         corner_layout.addWidget(close_btn)
