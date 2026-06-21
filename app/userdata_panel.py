@@ -97,8 +97,9 @@ class UserDataPanel(QWidget):
         self._tabs = QTabWidget()
         self._tabs.setStyleSheet("""
             QTabWidget::pane { border: 1px solid #30363d; border-radius: 4px; background: #0d1117; }
-            QTabBar::tab { background: #161b22; color: #8b949e; padding: 8px 16px; border: 1px solid #30363d; border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; }
-            QTabBar::tab:selected { background: #0d1117; color: #e6e1d8; border-bottom: 1px solid #0d1117; font-weight: bold; }
+            QTabBar::tab { background: transparent; color: #8b949e; padding: 8px 16px; border: 1px solid transparent; border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; }
+            QTabBar::tab:selected { background: #161b22; color: #c9a96e; border: 1px solid #30363d; border-bottom: 2px solid #c9a96e; font-weight: bold; }
+            QTabBar::tab:hover:!selected { background: #161b22; border: 1px solid #30363d; border-bottom: none; }
         """)
         
         self._bookmarks_list = WrappingListWidget()

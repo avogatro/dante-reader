@@ -62,7 +62,13 @@ def main():
     app.setWindowIcon(QIcon(icon_path))
 
     # Set default application font
-    font = QFont("Segoe UI", 13)
+    ui_font_family = "Segoe UI"
+    if app_lang == "zh_CN":
+        ui_font_family = "Microsoft YaHei"
+    elif app_lang == "ja":
+        ui_font_family = "Meiryo"
+        
+    font = QFont(ui_font_family, 13)
     app.setFont(font)
 
     # Launch main window

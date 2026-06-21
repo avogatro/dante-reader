@@ -31,7 +31,7 @@ class DanteChapter:
             "td { vertical-align: top; padding: 0 15px; }",
             ".stanza-row { margin-bottom: 1.5em; }",
             ".line { margin: 0; }",
-            "button.media-btn { margin-top: 10px; cursor: pointer; background-color: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 10px; border-radius: 6px; font-size: 0.9em; font-family: 'Segoe UI', system-ui; }",
+            "button.media-btn { margin-top: 10px; cursor: pointer; background-color: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 10px; border-radius: 6px; font-size: 0.9em; }",
             "button.media-btn:hover { background-color: #30363d; }",
             "[data-foot-id] { color: #58a6ff; cursor: pointer; text-decoration: underline; }",
             "[data-image-id] { width: 100%; max-width: 200px; height: auto; display: block; margin-bottom: 10px; border-radius: 4px; }",

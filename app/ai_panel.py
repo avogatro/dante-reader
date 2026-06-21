@@ -82,7 +82,10 @@ class AiPanel(QWidget):
         header_layout.addWidget(header_icon)
 
         header_label = QLabel(self.tr("AI Companion"))
-        header_label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        f = header_label.font()
+        f.setPointSize(13)
+        f.setWeight(QFont.Weight.Bold)
+        header_label.setFont(f)
         header_label.setStyleSheet("color: #c9a96e; background: transparent;")
         header_layout.addWidget(header_label)
         header_layout.addStretch()
@@ -142,7 +145,6 @@ class AiPanel(QWidget):
                 border: 1px solid #30363d;
                 border-radius: 4px;
                 padding: 8px;
-                font-style: italic;
                 font-size: 16px;
             }
         """)
@@ -206,8 +208,7 @@ class AiPanel(QWidget):
                 border: 1px solid #30363d;
                 border-radius: 6px;
                 padding: 12px;
-                font-family: "Segoe UI", sans-serif;
-                font-size: 17px;
+                font-size: 16px;
             }
         """)
         import os
@@ -368,7 +369,6 @@ class AiPanel(QWidget):
                 border: 1px solid #c9a96e;
                 border-radius: 4px;
                 padding: 8px;
-                font-style: italic;
                 font-size: 14px;
             }
         """)
@@ -516,7 +516,7 @@ class AiPanel(QWidget):
         import os
         err_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "error.svg").replace("\\", "/")
         self._response.setHtml(
-            f'<div style="color: #f85149; padding: 12px; font-family: Segoe UI, sans-serif; '
+            f'<div style="color: #f85149; padding: 12px; '
             f'font-size: 14px; line-height: 1.6;">'
             f"<img src='{err_path}' width='14' height='14'> {safe_error}</div>"
         )
@@ -543,7 +543,7 @@ class AiPanel(QWidget):
 
         # Wrap in a styled div for the QTextBrowser
         return (
-            f'<div style="font-family: Segoe UI, sans-serif; font-size: 14px; '
+            f'<div style="font-size: 14px; '
             f'color: #e6e1d8; line-height: 1.6; padding: 8px;">'
             f"{html_content}</div>"
         )
@@ -561,11 +561,12 @@ class AiPanel(QWidget):
         self._selected_text = ""
         self._selection_label.setText(self.tr("No text selected"))
         self._selection_label.setStyleSheet("""
-            color: #8b949e;
-            background-color: #1c2333;
-            border: 1px solid #30363d;
-            border-radius: 4px;
-            padding: 8px;
-            font-style: italic;
-            font-size: 12px;
+            QTextEdit {
+                color: #8b949e;
+                background-color: #1c2333;
+                border: 1px solid #30363d;
+                border-radius: 4px;
+                padding: 8px;
+                font-size: 12px;
+            }
         """)

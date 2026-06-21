@@ -226,7 +226,7 @@ class ReaderWindow(QMainWindow):
         self._wire_ribbon_signals()
         
         main_layout = QVBoxLayout()
-        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setContentsMargins(1, 1, 1, 1)
         main_layout.setSpacing(0)
         main_layout.addWidget(self._title_bar)
         main_layout.addWidget(self._ribbon)
@@ -305,6 +305,13 @@ class ReaderWindow(QMainWindow):
         if event.type() == QEvent.Type.WindowStateChange:
             if hasattr(self, "_title_bar"):
                 self._title_bar.set_maximized_icon(self.isMaximized())
+        elif event.type() == QEvent.Type.ActivationChange:
+            wrapper = self.centralWidget()
+            if wrapper and wrapper.objectName() == "MainWrapper":
+                if self.isActiveWindow():
+                    wrapper.setStyleSheet("#MainWrapper { border: 1px solid #5b626a; }")
+                else:
+                    wrapper.setStyleSheet("#MainWrapper { border: 1px solid #30363d; }")
 
     def _wire_ribbon_signals(self):
         tb = self._title_bar
@@ -356,16 +363,21 @@ class ReaderWindow(QMainWindow):
             btn.setMenu(menu)
 
         # Font popup
+        fonts = [
+            "Georgia", "Times New Roman", "Segoe UI", "Inter", "Arial", "Courier New",
+            "Microsoft YaHei", "SimSun", "Meiryo", "Yu Gothic", "Noto Sans CJK SC"
+        ]
         create_exclusive_menu(
             rb.font_btn,
-            [(f, f) for f in ["Georgia", "Times New Roman", "Segoe UI", "Inter", "Courier New"]],
+            [(f, f) for f in fonts],
             self._prefs.get("font_family", "Georgia"),
             self._set_font
         )
         
+        sizes = [12, 14, 16, 18, 20, 24, 28, 32, 36, 42, 48, 56, 64, 72, 96, 128]
         create_exclusive_menu(
             rb.size_btn,
-            [(s, f"{s}px") for s in [14, 16, 18, 20, 24, 28, 32]],
+            [(s, f"{s}px") for s in sizes],
             self._prefs.get("font_size", 18),
             self._set_font_size
         )

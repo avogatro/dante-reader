@@ -9,6 +9,8 @@ class FootnoteWidget(QFrame):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 10, 10, 10)
         
+
+        
         self.label = QLabel(text)
         self.label.setWordWrap(True)
         self.label.setTextFormat(Qt.TextFormat.RichText)

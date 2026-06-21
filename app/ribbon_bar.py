@@ -84,13 +84,22 @@ class CustomTitleBar(QWidget):
         self.app_menu = QMenu(self)
         self.scale_menu = self.app_menu.addMenu(self.tr("UI Scale (Requires Restart)"))
         
+        from app.config import load_prefs
+        prefs = load_prefs()
+        current_scale = float(prefs.get("ui_scale", 1.0))
+        
         for scale in [1.0, 1.25, 1.5, 1.75, 2.0]:
             action = self.scale_menu.addAction(f"{int(scale*100)}%")
             action.setData(scale)
+            action.setCheckable(True)
+            if scale == current_scale:
+                action.setChecked(True)
             
         self.scale_menu.triggered.connect(lambda action: self.scale_requested.emit(float(action.data())))
             
         self.lang_menu = self.app_menu.addMenu(self.tr("App Language (Requires Restart)"))
+        
+        current_lang = prefs.get("app_lang", "en")
         
         lang_names = {
             "en": (self.tr("English"), "English"),
@@ -103,6 +112,9 @@ class CustomTitleBar(QWidget):
         for code, (translated, native) in lang_names.items():
             action = self.lang_menu.addAction(f"{translated} | {native}")
             action.setData(code)
+            action.setCheckable(True)
+            if code == current_lang:
+                action.setChecked(True)
         self.lang_menu.triggered.connect(lambda action: self.lang_requested.emit(str(action.data())))
 
         self.app_logo.setMenu(self.app_menu)
@@ -121,9 +133,12 @@ class CustomTitleBar(QWidget):
         self.chapter_combo = QComboBox()
         self.chapter_combo.setMinimumWidth(450)
         self.chapter_combo.setMaximumWidth(450)
-        self.chapter_combo.setStyleSheet("""
-            QComboBox { background: #161b22; color: #e6e1d8; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 13px;}
-            QComboBox::drop-down { border: none; }
+        arrow_svg = '''data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%238b949e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>'''
+        self.chapter_combo.setStyleSheet(f"""
+            QComboBox {{ background: #161b22; color: #e6e1d8; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 13px;}}
+            QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: top right; width: 24px; border: none; background: transparent; }}
+            QComboBox::down-arrow {{ image: url('{arrow_svg}'); }}
+            QComboBox QAbstractItemView {{ background: #161b22; color: #e6e1d8; border: 1px solid #30363d; selection-background-color: #30363d; }}
         """)
         self.chapter_combo.currentIndexChanged.connect(self.chapter_selected.emit)
         
@@ -282,24 +297,27 @@ class RibbonBar(QTabWidget):
         self._setup_read_tab()
         self._setup_ai_tab()
         
-    def _create_group(self, title: str) -> QWidget:
+    def _create_group(self, title: str) -> QFrame:
         g = QFrame()
         l = QVBoxLayout(g)
-        l.setContentsMargins(6, 4, 6, 0)
+        l.setContentsMargins(0, 0, 15, 0)
+        l.setSpacing(0)
         
-        content = QHBoxLayout()
-        content.setSpacing(4)
+        content_wrapper = QFrame()
+        content_wrapper.setStyleSheet("QFrame { border-right: 1px solid #30363d; border-radius: 0px; padding-right: 10px; }")
+        
+        content = QHBoxLayout(content_wrapper)
+        content.setContentsMargins(0, 0, 0, 2)
+        content.setSpacing(0)
         g.content_layout = content
-        g.setStyleSheet("QFrame { border-right: 1px solid #30363d; border-radius: 0px; }")
-        l.addLayout(content)
+        
+        l.addWidget(content_wrapper)
         l.addStretch()
         
         lbl = QLabel(title)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet("color: #e6e1d8; font-size: 11px; margin-top: 2px; background: transparent;")
+        lbl.setStyleSheet("color: #e6e1d8; font-size: 11px; margin-top: 0px; background: transparent; border: none;")
         l.addWidget(lbl)
-        
-        # Add a subtle right border to the group
         
         return g
 

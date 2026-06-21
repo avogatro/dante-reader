@@ -195,7 +195,10 @@ class LibraryPanel(QWidget):
         icon_lbl.setPixmap(QIcon(icon_path).pixmap(24, 24))
         
         header = QLabel(self.tr(" Library"))
-        header.setFont(QFont("Segoe UI", 14, QFont.Weight.Bold))
+        f = header.font()
+        f.setPointSize(14)
+        f.setWeight(QFont.Weight.Bold)
+        header.setFont(f)
         header.setStyleSheet("color: #c9a96e; background: transparent; padding: 4px;")
         
         from PyQt6.QtGui import QIcon
@@ -292,7 +295,9 @@ class LibraryPanel(QWidget):
             item.setText(title_clean)
             item.setIcon(QIcon(placeholder_pixmap))
             item.setData(Qt.ItemDataRole.UserRole, full_path)
-            item.setFont(QFont("Segoe UI", 10))
+            f = self.font()
+            f.setPointSize(10)
+            item.setFont(f)
             item.setSizeHint(QSize(160, 260))
             self._list.addItem(item)
             

@@ -51,7 +51,10 @@ class FootnotePanel(QWidget):
         header_layout.addWidget(header_icon)
 
         header_label = QLabel("Footnote")
-        header_label.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
+        f = header_label.font()
+        f.setPointSize(13)
+        f.setWeight(QFont.Weight.Bold)
+        header_label.setFont(f)
         header_label.setStyleSheet("color: #c9a96e; background: transparent;")
         header_layout.addWidget(header_label)
 
