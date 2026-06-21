@@ -1381,55 +1381,76 @@ class ReaderPanel(QWidget):
             
             if ({safe_text} === '') return;
             
+            var lines = {safe_text}.split(/[\\r\\n]+/).map(s => s.trim()).filter(s => s.length > 0);
+            if (lines.length === 0) return;
+            
             var targetClass = {safe_target};
             var sel = window.getSelection();
-            var originalRange = null;
-            if (sel.rangeCount > 0) {{
-                originalRange = sel.getRangeAt(0).cloneRange();
-            }}
-            
             sel.removeAllRanges();
             
-            var textsToTry = [{safe_text}, {safe_text}.replace(/\\s+/g, ' ').trim()];
-            var found = false;
+            var foundAny = false;
+            document.designMode = 'on';
             
-            for (var i = 0; i < textsToTry.length; i++) {{
-                var searchStr = textsToTry[i];
-                var iterations = 0;
+            for (var j = 0; j < lines.length; j++) {{
+                var searchStr = lines[j];
+                var textsToTry = [searchStr, searchStr.replace(/\\s+/g, ' ').trim()];
+                var foundLine = false;
                 
-                // Keep finding next match until we hit the right column
-                while (iterations < 50) {{
-                    var matched = window.find(searchStr, false, false, false, false, false, false);
-                    if (!matched) break; // Reached end of document
-                    
-                    if (targetClass) {{
-                        var node = window.getSelection().anchorNode;
-                        var container = node ? (node.nodeType === 3 ? node.parentElement : node) : null;
-                        if (container && container.closest(targetClass)) {{
-                            found = true;
-                            break;
-                        }}
-                    }} else {{
-                        found = true;
-                        break;
-                    }}
-                    iterations++;
+                var savedRange = null;
+                if (sel.rangeCount > 0) {{
+                    savedRange = sel.getRangeAt(0).cloneRange();
                 }}
                 
-                if (found) break;
-                // If not found, clear selection to search from top again for the next variant
-                sel.removeAllRanges();
+                for (var i = 0; i < textsToTry.length; i++) {{
+                    var tryStr = textsToTry[i];
+                    if (!tryStr) continue;
+                    
+                    if (i > 0) {{
+                        sel.removeAllRanges();
+                        if (savedRange) {{
+                            sel.addRange(savedRange);
+                        }}
+                    }}
+                    
+                    var iterations = 0;
+                    while (iterations < 50) {{
+                        var matched = window.find(tryStr, false, false, false, false, false, false);
+                        if (!matched) break; 
+                        
+                        if (targetClass) {{
+                            var node = window.getSelection().anchorNode;
+                            var container = node ? (node.nodeType === 3 ? node.parentElement : node) : null;
+                            if (container && container.closest(targetClass)) {{
+                                foundLine = true;
+                                break;
+                            }}
+                        }} else {{
+                            foundLine = true;
+                            break;
+                        }}
+                        iterations++;
+                    }}
+                    
+                    if (foundLine) break;
+                }}
+                
+                if (foundLine) {{
+                    foundAny = true;
+                    document.execCommand('hiliteColor', false, 'rgba(201, 169, 110, 0.4)');
+                    // Collapse to end so next line searches forward from here
+                    if (sel.rangeCount > 0) {{
+                        sel.collapseToEnd();
+                    }}
+                }}
             }}
             
-            if (found) {{
-                document.designMode = 'on';
-                document.execCommand('hiliteColor', false, 'rgba(201, 169, 110, 0.4)');
-                document.designMode = 'off';
-                
+            document.designMode = 'off';
+            
+            if (foundAny) {{
                 // Scroll into view only if out of bounds, placing it near the top
-                var sel = window.getSelection();
-                if (sel.rangeCount > 0) {{
-                    var range = sel.getRangeAt(0);
+                var currentSel = window.getSelection();
+                if (currentSel.rangeCount > 0) {{
+                    var range = currentSel.getRangeAt(0);
                     var rect = range.getBoundingClientRect();
                     var viewHeight = window.innerHeight || document.documentElement.clientHeight;
                     
@@ -1438,8 +1459,6 @@ class ReaderPanel(QWidget):
                         window.scrollBy({{top: rect.top - 20, behavior: 'smooth'}});
                     }}
                 }}
-                // Collapse selection to the START of the sentence.
-                sel.collapseToStart();
             }}
         }})()
         """
@@ -1512,7 +1531,7 @@ class ReaderPanel(QWidget):
         # Custom: Dictionary Lookup
         # We also trigger Dictionary if selected text is a single word.
         if selected_text and " " not in selected_text and len(selected_text) < 30:
-            dict_action = QAction(QIcon(os.path.join(icon_dir, "book.svg")), self.tr("Dictionary Lookup"), self)
+            dict_action = QAction(QIcon(os.path.join(icon_dir, "book-a.svg")), self.tr("Dictionary Lookup"), self)
             dict_action.triggered.connect(lambda: self.dictionary_lookup_requested.emit(selected_text))
             menu.addAction(dict_action)
             
@@ -1598,10 +1617,12 @@ class ReaderPanel(QWidget):
         js = "var h = document.documentElement.scrollHeight - window.innerHeight; h = h > 0 ? h : 1; window.scrollY / h;"
         self._get_active_page().runJavaScript(js, lambda pct: self.bookmark_requested.emit(self.get_current_chapter_index(), float(pct or 0.0)))
 
-    def navigate_to_percent(self, chapter_idx: int, pct: float) -> None:
+    def navigate_to_percent(self, chapter_idx: int, pct: float, text_to_highlight: str = "") -> None:
         def _do_scroll():
             js = f"var h = document.documentElement.scrollHeight - window.innerHeight; h = h > 0 ? h : 1; window.scrollTo(0, {pct} * h);"
             self._get_active_page().runJavaScript(js)
+            if text_to_highlight:
+                self.highlight_sentence(text_to_highlight)
 
         if chapter_idx != self._current_chapter:
             try:
