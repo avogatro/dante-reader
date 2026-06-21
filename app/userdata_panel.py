@@ -6,59 +6,30 @@ from PyQt6.QtGui import QIcon, QPainter, QFontMetrics, QShortcut, QKeySequence
 from app.ui_utils import get_icon
 
 class WrappingListWidget(QListWidget):
+    item_needs_widget = pyqtSignal(QListWidgetItem)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._last_width = -1
+        self.verticalScrollBar().valueChanged.connect(self._on_scroll)
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        width = self.viewport().width()
+    def _on_scroll(self, *args):
+        viewport_rect = self.viewport().rect()
+        # Add margin to load slightly ahead of scrolling
+        viewport_rect.adjust(0, -300, 0, 300)
         
-        # Prevent infinite layout loops
-        if width == self._last_width:
-            return
-        self._last_width = width
-        
-        # Defer the heavy calculation so the UI updates instantly
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(10, lambda: self._recalc_heights(width))
-        
-    def _recalc_heights(self, width: int):
-        # Double check width hasn't changed since the timer started
-        if self.viewport().width() != width:
-            return
-            
-        self._recalc_idx = 0
-        self._recalc_width = width
-        self._process_next_chunk()
-        
-    def _process_next_chunk(self):
-        if self.viewport().width() != self._recalc_width:
-            return
-            
-        chunk_size = 15
-        end = min(self._recalc_idx + chunk_size, self.count())
-        
-        for i in range(self._recalc_idx, end):
+        for i in range(self.count()):
             item = self.item(i)
-            if not item:
+            rect = self.visualItemRect(item)
+            
+            if rect.bottom() < viewport_rect.top():
                 continue
+            if rect.top() > viewport_rect.bottom():
+                break
                 
-            widget = self.itemWidget(item)
-            if widget:
-                new_height = widget.heightForWidth(self._recalc_width)
-                if new_height > 0:
-                    new_size = QSize(self._recalc_width, new_height)
-                else:
-                    new_size = QSize(self._recalc_width, widget.sizeHint().height())
-                
-                if item.sizeHint() != new_size:
-                    item.setSizeHint(new_size)
-                    
-        self._recalc_idx = end
-        if self._recalc_idx < self.count():
-            from PyQt6.QtCore import QTimer
-            QTimer.singleShot(1, self._process_next_chunk)
+            if not self.itemWidget(item):
+                self.item_needs_widget.emit(item)
+
+
 
 class UserDataPanel(QWidget):
     # Emit chapter index, scroll percent, selected_text (optional)
@@ -106,14 +77,18 @@ class UserDataPanel(QWidget):
         self._bookmarks_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._bookmarks_list.setStyleSheet(self._list_style())
         self._bookmarks_list.itemClicked.connect(self._on_bookmark_clicked)
-        self._bookmarks_list.itemSelectionChanged.connect(self._on_bookmarks_selection_changed)
+        self._bookmarks_list.item_needs_widget.connect(self._on_bookmark_needs_widget)
+        self._bookmarks_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._bookmarks_list.customContextMenuRequested.connect(self._on_bookmark_context_menu)
         
         self._notes_list = WrappingListWidget()
         self._notes_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self._notes_list.setStyleSheet(self._list_style())
         self._notes_list.itemClicked.connect(self._on_note_clicked)
-        self._notes_list.itemSelectionChanged.connect(self._on_notes_selection_changed)
-
+        self._notes_list.item_needs_widget.connect(self._on_note_needs_widget)
+        self._notes_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self._notes_list.customContextMenuRequested.connect(self._on_note_context_menu)
+        
         self._tabs.addTab(self._bookmarks_list, get_icon("bookmark.svg"), self.tr("Bookmarks"))
         self._tabs.addTab(self._notes_list, get_icon("note.svg"), self.tr("Notes"))
         
@@ -136,16 +111,17 @@ class UserDataPanel(QWidget):
                 outline: none;
             }
             QListWidget::item {
+                border: 1px solid transparent;
                 border-bottom: 1px solid #30363d;
-                padding: 2px;
+                padding: 1px;
                 min-height: 40px;
             }
             QListWidget::item:hover {
                 background-color: #21262d;
             }
             QListWidget::item:selected {
-                background-color: #1f6feb;
-                color: #ffffff;
+                background-color: transparent;
+                border: 1px solid #1f6feb;
             }
         """
 
@@ -153,140 +129,121 @@ class UserDataPanel(QWidget):
         self._bookmarks_list.clear()
         self._notes_list.clear()
         
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
-
+        w_b = self._bookmarks_list.viewport().width()-50
+        w_n = self._notes_list.viewport().width()-50
+        
         # Populate bookmarks
         for b in bookmarks:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, b)
-            
-            # Custom widget for the item
-            widget = QWidget()
-            w_layout = QHBoxLayout(widget)
-            w_layout.setContentsMargins(5, 5, 5, 5)
-            
-            content_layout = QVBoxLayout()
-            content_layout.setSpacing(4)
-            
-            pct = int(b.get("scroll_percent", 0.0) * 100)
-            ch_label = QLabel(self.tr("Chapter {index}").format(index=b.get("chapter", 0) + 1) + f" ({pct}%)")
-            ch_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
-            content_layout.addWidget(ch_label)
-            
-            label_text = b.get("label")
-            if label_text:
-                text_label = QLabel(label_text)
-                text_label.setWordWrap(True)
-                text_label.setStyleSheet("font-weight: bold; background: transparent;")
-            else:
-                text_label = QLabel(self.tr("Bookmark"))
-                text_label.setStyleSheet("font-style: italic; color: #8b949e; background: transparent;")
-            content_layout.addWidget(text_label)
-            
-            btn_container = QWidget()
-            btn_container.setObjectName("btn_container")
-            btn_layout = QVBoxLayout(btn_container)
-            btn_layout.setSpacing(12)
-            btn_layout.setContentsMargins(0, 0, 0, 0)
-            
-            edit_btn = QToolButton()
-       
-            edit_btn.setIcon(get_icon("pencil.svg"))
-            edit_btn.setIconSize(QSize(20, 20))
-            edit_btn.setStyleSheet("background: transparent; border: none;")
-            edit_btn.clicked.connect(lambda checked, bid=b["id"], blabel=label_text or "": self.edit_bookmark_requested.emit(bid, blabel))
-            
-            del_btn = QToolButton()
-            del_btn.setIcon(get_icon("delete.svg"))
-            del_btn.setIconSize(QSize(20, 20))
-            del_btn.setStyleSheet("background: transparent; border: none;")
-            del_btn.clicked.connect(lambda checked, bid=b["id"]: self.delete_bookmark_requested.emit(bid))
-            
-            btn_layout.addWidget(edit_btn)
-            btn_layout.addWidget(del_btn)
-            btn_layout.addStretch()
-            
-            btn_container.setVisible(False)
-            
-            w_layout.addLayout(content_layout, 1)
-            w_layout.addWidget(btn_container)
-            
-            policy = widget.sizePolicy()
-            policy.setHeightForWidth(True)
-            widget.setSizePolicy(policy)
-            
-            item.setSizeHint(widget.sizeHint())
+            item.setSizeHint(QSize(max(w_b, 100), 69))
             self._bookmarks_list.addItem(item)
-            self._bookmarks_list.setItemWidget(item, widget)
-
+            
         # Populate notes
         for n in notes:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, n)
-            
-            widget = QWidget()
-            w_layout = QHBoxLayout(widget)
-            w_layout.setContentsMargins(5, 5, 5, 5)
-            
-            content_layout = QVBoxLayout()
-            content_layout.setSpacing(4)
-            
-            pct = int(n.get("scroll_percent", 0.0) * 100)
-            ch_label = QLabel(self.tr("Chapter {index}").format(index=n.get("chapter", 0) + 1) + f" ({pct}%)")
-            ch_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
-            
-            q_text = n.get("selected_text", "")
-            if q_text:
-                quote_label = QLabel(f'"{q_text}"')
-                quote_label.setWordWrap(True)
-            else:
-                quote_label = QLabel()
-            quote_label.setStyleSheet("color: #c9a96e; font-style: italic; background: transparent;")
-            
-            n_text = n.get("note", "")
-            note_label = QLabel(n_text)
-            note_label.setWordWrap(True)
-            note_label.setStyleSheet("font-weight: bold; background: transparent;")
-            
-            content_layout.addWidget(ch_label)
-            if n.get("selected_text"):
-                content_layout.addWidget(quote_label)
-            content_layout.addWidget(note_label)
-            
-            btn_container = QWidget()
-            btn_container.setObjectName("btn_container")
-            btn_layout = QVBoxLayout(btn_container)
-            btn_layout.setSpacing(12)
-            btn_layout.setContentsMargins(0, 0, 0, 0)
-            
-            edit_btn = QToolButton()
-            edit_btn.setIcon(get_icon("pencil.svg"))
-            edit_btn.setIconSize(QSize(20, 20))
-            edit_btn.setStyleSheet("background: transparent; border: none;")
-            edit_btn.clicked.connect(lambda checked, nid=n["id"], ntext=n.get("note", ""): self.edit_note_requested.emit(nid, ntext))
-            
-            del_btn = QToolButton()
-            del_btn.setIcon(get_icon("delete.svg"))
-            del_btn.setIconSize(QSize(20, 20))
-            del_btn.setStyleSheet("background: transparent; border: none;")
-            del_btn.clicked.connect(lambda checked, nid=n["id"]: self.delete_note_requested.emit(nid))
-            
-            btn_layout.addWidget(edit_btn)
-            btn_layout.addWidget(del_btn)
-            btn_layout.addStretch()
-            
-            btn_container.setVisible(False)
-            
-            w_layout.addLayout(content_layout, 1)
-            w_layout.addWidget(btn_container)
-            
-            policy = widget.sizePolicy()
-            policy.setHeightForWidth(True)
-            widget.setSizePolicy(policy)
-            
-            item.setSizeHint(widget.sizeHint())
+            item.setSizeHint(QSize(max(w_n, 100), 69))
             self._notes_list.addItem(item)
-            self._notes_list.setItemWidget(item, widget)
+            
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(0, self._bookmarks_list._on_scroll)
+        QTimer.singleShot(0, self._notes_list._on_scroll)
+
+    def _on_bookmark_needs_widget(self, item: QListWidgetItem):
+        b = item.data(Qt.ItemDataRole.UserRole)
+        if b:
+            self._create_bookmark_widget(item, b)
+
+    def _on_note_needs_widget(self, item: QListWidgetItem):
+        n = item.data(Qt.ItemDataRole.UserRole)
+        if n:
+            self._create_note_widget(item, n)
+
+    def _create_bookmark_widget(self, item: QListWidgetItem, b: dict):
+        widget = QWidget()
+        w_layout = QHBoxLayout(widget)
+        w_layout.setContentsMargins(5, 5, 5, 5)
+        
+        content_layout = QVBoxLayout()
+        content_layout.setSpacing(4)
+        
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        pct = int(b.get("scroll_percent", 0.0) * 100)
+        ch_label = QLabel(self.tr("Chapter {index}").format(index=b.get("chapter", 0) + 1) + f" ({pct}%)")
+        ch_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
+        header_layout.addWidget(ch_label)
+        header_layout.addStretch()
+        content_layout.addLayout(header_layout)
+        
+        label_text = b.get("label")
+        if label_text:
+            text_label = QLabel(label_text)
+            text_label.setWordWrap(False)
+            text_label.setMinimumWidth(1)
+            text_label.setStyleSheet("font-weight: bold; background: transparent;")
+        else:
+            text_label = QLabel(self.tr("Bookmark"))
+            text_label.setStyleSheet("font-style: italic; color: #8b949e; background: transparent;")
+        content_layout.addWidget(text_label)
+        content_layout.addStretch()
+        
+        w_layout.addLayout(content_layout, 1)
+        
+        self._bookmarks_list.setItemWidget(item, widget)
+        item.setSizeHint(QSize(0, 48))
+
+    def _create_note_widget(self, item: QListWidgetItem, n: dict):
+        widget = QWidget()
+        w_layout = QHBoxLayout(widget)
+        w_layout.setContentsMargins(5, 5, 5, 5)
+        
+        content_layout = QVBoxLayout()
+        content_layout.setSpacing(4)
+        
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(8)
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        
+        pct = int(n.get("scroll_percent", 0.0) * 100)
+        ch_label = QLabel(self.tr("Chapter {index}").format(index=n.get("chapter", 0) + 1) + f" ({pct}%)")
+        ch_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
+        header_layout.addWidget(ch_label)
+        header_layout.addStretch()
+        content_layout.addLayout(header_layout)
+        
+        q_text = n.get("selected_text", "")
+        if len(q_text) > 600:
+            q_text = q_text[:600] + "..."
+            
+        if q_text:
+            quote_label = QLabel(f'"{q_text}"')
+            quote_label.setWordWrap(True)
+            quote_label.setMinimumWidth(1)
+        else:
+            quote_label = QLabel()
+        quote_label.setStyleSheet("color: #c9a96e; font-style: italic; background: transparent;")
+        
+        n_text = n.get("note", "")
+        if len(n_text) > 600:
+            n_text = n_text[:600] + "..."
+        note_label = QLabel(n_text)
+        note_label.setWordWrap(True)
+        note_label.setMinimumWidth(1)
+        note_label.setStyleSheet("font-weight: bold; background: transparent;")
+        
+        if n.get("selected_text"):
+            content_layout.addWidget(quote_label)
+        content_layout.addWidget(note_label)
+        content_layout.addStretch()
+        
+        w_layout.addLayout(content_layout, 1)
+        
+        self._notes_list.setItemWidget(item, widget)
+        item.setSizeHint(QSize(0, 145))
 
     def _on_bookmark_clicked(self, item: QListWidgetItem):
         b = item.data(Qt.ItemDataRole.UserRole)
@@ -298,20 +255,39 @@ class UserDataPanel(QWidget):
         if n:
             self.navigate_requested.emit(n.get("chapter", 0), n.get("scroll_percent", 0.0), n.get("selected_text", ""))
 
-    def _on_bookmarks_selection_changed(self):
-        self._update_button_visibility(self._bookmarks_list)
+    def _on_bookmark_context_menu(self, pos):
+        item = self._bookmarks_list.itemAt(pos)
+        if not item: return
+        b = item.data(Qt.ItemDataRole.UserRole)
+        if not b: return
+        
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        edit_action = menu.addAction(get_icon("pencil.svg"), self.tr("Edit"))
+        del_action = menu.addAction(get_icon("delete.svg"), self.tr("Delete"))
+        
+        action = menu.exec(self._bookmarks_list.viewport().mapToGlobal(pos))
+        if action == edit_action:
+            self.edit_bookmark_requested.emit(b["id"], b.get("label", ""))
+        elif action == del_action:
+            self.delete_bookmark_requested.emit(b["id"])
 
-    def _on_notes_selection_changed(self):
-        self._update_button_visibility(self._notes_list)
-
-    def _update_button_visibility(self, lst: QListWidget):
-        for i in range(lst.count()):
-            item = lst.item(i)
-            widget = lst.itemWidget(item)
-            if widget:
-                btn_container = widget.findChild(QWidget, "btn_container")
-                if btn_container:
-                    btn_container.setVisible(item.isSelected())
+    def _on_note_context_menu(self, pos):
+        item = self._notes_list.itemAt(pos)
+        if not item: return
+        n = item.data(Qt.ItemDataRole.UserRole)
+        if not n: return
+        
+        from PyQt6.QtWidgets import QMenu
+        menu = QMenu(self)
+        edit_action = menu.addAction(get_icon("pencil.svg"), self.tr("Edit"))
+        del_action = menu.addAction(get_icon("delete.svg"), self.tr("Delete"))
+        
+        action = menu.exec(self._notes_list.viewport().mapToGlobal(pos))
+        if action == edit_action:
+            self.edit_note_requested.emit(n["id"], n.get("note", ""))
+        elif action == del_action:
+            self.delete_note_requested.emit(n["id"])
 
     def _get_active_list(self) -> QListWidget:
         return self._bookmarks_list if self._tabs.currentIndex() == 0 else self._notes_list

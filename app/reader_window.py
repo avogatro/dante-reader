@@ -451,8 +451,8 @@ class ReaderWindow(QMainWindow):
 
         # Reader → AI panel (text selection)
         self._reader.text_selected.connect(self._on_text_selected)
-        self._reader.ai_explain_requested.connect(self._ai._explain)
-        self._reader.ai_translate_requested.connect(self._ai._translate)
+        self._reader.ai_explain_requested.connect(self._on_ai_explain_requested)
+        self._reader.ai_translate_requested.connect(self._on_ai_translate_requested)
         
         # Connect Context Menu TTS actions
         self._reader.play_chapter_requested.connect(self._tts_play)
@@ -744,12 +744,7 @@ class ReaderWindow(QMainWindow):
             return
             
         # Open the search panel
-        target = 320
-        current = self._right_tabs.width() if self._right_tabs.isVisible() else 0
-        if not self._right_tabs.isVisible() or self._right_tabs.maximumWidth() == 0:
-            self._animate_widget_width(self._right_tabs, current, target)
-            
-        self._right_tabs.setCurrentWidget(self._search_panel)
+        self._open_sidebar_to(self._search_panel)
         self._search_panel.show_loading(query)
         
         from .search_worker import SearchWorker
@@ -760,6 +755,10 @@ class ReaderWindow(QMainWindow):
 
     def _on_search_result_selected(self, chapter_idx: int, query: str) -> None:
         if not self._current_book:
+            return
+            
+        if self._reader._current_chapter == chapter_idx:
+            self._reader._page.findText(query)
             return
             
         self._reader._page.findText("")
@@ -828,6 +827,14 @@ class ReaderWindow(QMainWindow):
             self.tr("Selected {length} characters — use AI panel or TTS to read").format(length=len(text))
         )
 
+    def _on_ai_explain_requested(self) -> None:
+        self._open_sidebar_to(self._ai)
+        self._ai._explain()
+
+    def _on_ai_translate_requested(self) -> None:
+        self._open_sidebar_to(self._ai)
+        self._ai._translate()
+
     # ═══════════════════════════════════
     # View Controls
     # ═══════════════════════════════════
@@ -892,6 +899,12 @@ class ReaderWindow(QMainWindow):
         target = 200 if not self._library.isVisible() or self._library.maximumWidth() == 0 else 0
         current = self._library.width() if self._library.isVisible() else 0
         self._animate_widget_width(self._library, current, target)
+
+    def _open_sidebar_to(self, widget: QWidget) -> None:
+        """Ensure the sidebar is open and switched to the specified tab."""
+        self._right_tabs.setCurrentWidget(widget)
+        if not self._sidebar_container.isVisible() or self._sidebar_container.maximumWidth() == 0:
+            self._toggle_sidebar()
 
     def _toggle_sidebar(self) -> None:
         target = 320 if not self._sidebar_container.isVisible() or self._sidebar_container.maximumWidth() == 0 else 0

@@ -63,15 +63,16 @@ class SearchPanel(QWidget):
                 padding: 5px;
             }
             QListWidget::item {
+                border: 1px solid transparent;
                 border-bottom: 1px solid #30363d;
-                padding: 10px;
+                padding: 9px;
             }
             QListWidget::item:hover {
                 background-color: #21262d;
             }
             QListWidget::item:selected {
-                background-color: #1f6feb;
-                color: #ffffff;
+                background-color: transparent;
+                border: 1px solid #1f6feb;
             }
         """)
         self._list_widget.setWordWrap(True)
