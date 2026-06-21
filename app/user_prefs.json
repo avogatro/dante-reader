@@ -7,15 +7,15 @@
   "tts_skip_footnotes": true,
   "tts_voice_id": null,
   "tts_rate": 160,
-  "window_width": 2048,
-  "window_height": 1114,
+  "window_width": 1920,
+  "window_height": 1000,
   "library_dir": null,
   "pdf_dark_mode": true,
   "pdf_reading_mode": false,
-  "epub_markdown_mode": true,
+  "epub_markdown_mode": false,
   "translation_lang": "Modern English",
   "tts_voice": "morgan_freeman",
-  "tts_auto_next": false,
+  "tts_auto_next": true,
   "ui_scale": 1.25,
-  "app_lang": "zh_CN"
+  "app_lang": "en"
 }
