@@ -7,6 +7,8 @@ Supports: Ollama (local, free) and Gemini (cloud, API key required).
 import markdown
 import threading
 
+from app.ui_utils import get_icon, get_icon_path
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
@@ -75,10 +77,7 @@ class AiPanel(QWidget):
         header_layout = QHBoxLayout()
         
         header_icon = QLabel()
-        import os
-        from PyQt6.QtGui import QPixmap, QIcon
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "ai_model.svg")
-        header_icon.setPixmap(QIcon(icon_path).pixmap(24, 24))
+        header_icon.setPixmap(get_icon("ai_model.svg").pixmap(24, 24))
         header_layout.addWidget(header_icon)
 
         header_label = QLabel(self.tr("AI Companion"))
@@ -90,7 +89,31 @@ class AiPanel(QWidget):
         header_layout.addWidget(header_label)
         header_layout.addStretch()
 
+        # Settings toggle button
+        self._btn_toggle_settings = QPushButton()
+        self._btn_toggle_settings.setToolTip(self.tr("Toggle Settings & Selection Preview"))
+        self._btn_toggle_settings.setFixedSize(28, 28)
+        self._btn_toggle_settings.setStyleSheet("""
+            QPushButton { border: none; background: transparent; border-radius: 4px; }
+            QPushButton:hover { background: #30363d; }
+        """)
+        self._btn_toggle_settings.setIcon(get_icon("close.svg"))
+        header_layout.addWidget(self._btn_toggle_settings)
+
         layout.addLayout(header_layout)
+
+        # ── Settings Container (Collapsible) ──
+        self._settings_container = QWidget()
+        settings_layout = QVBoxLayout(self._settings_container)
+        settings_layout.setContentsMargins(0, 0, 0, 0)
+        settings_layout.setSpacing(6)
+
+        def toggle_settings():
+            is_visible = self._settings_container.isVisible()
+            self._settings_container.setVisible(not is_visible)
+            self._btn_toggle_settings.setIcon(get_icon("close.svg" if not is_visible else "menu.svg"))
+
+        self._btn_toggle_settings.clicked.connect(toggle_settings)
 
         # ── Backend Selector ──
         backend_row = QHBoxLayout()
@@ -110,7 +133,7 @@ class AiPanel(QWidget):
         self._backend_combo.currentTextChanged.connect(self._on_backend_changed)
         backend_row.addWidget(self._backend_combo, 1)
 
-        layout.addLayout(backend_row)
+        settings_layout.addLayout(backend_row)
 
         model_row = QHBoxLayout()
         model_row.setSpacing(6)
@@ -124,20 +147,20 @@ class AiPanel(QWidget):
         self._model_combo.currentTextChanged.connect(self._on_model_changed)
         model_row.addWidget(self._model_combo, 1)
 
-        layout.addLayout(model_row)
+        settings_layout.addLayout(model_row)
 
         # ── Status ──
         self._status_label = QLabel("")
         self._status_label.setStyleSheet(
             "color: #8b949e; font-size: 11px; background: transparent;"
         )
-        layout.addWidget(self._status_label)
+        settings_layout.addWidget(self._status_label)
 
         # ── Selected Text Preview ──
         self._selection_label = QTextEdit(self.tr("No text selected"))
         self._selection_label.setReadOnly(True)
-        self._selection_label.setMinimumHeight(150)
-        self._selection_label.setMaximumHeight(250)
+        self._selection_label.setMinimumHeight(40)
+        self._selection_label.setMaximumHeight(200)
         self._selection_label.setStyleSheet("""
             QTextEdit {
                 color: #8b949e;
@@ -146,34 +169,33 @@ class AiPanel(QWidget):
                 border-radius: 4px;
                 padding: 8px;
                 font-size: 16px;
+                font-family: "Segoe UI", "Microsoft YaHei", "Meiryo", sans-serif;
             }
         """)
         self._selection_label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._selection_label.customContextMenuRequested.connect(lambda pos: self._show_text_context_menu(pos, self._selection_label))
-        layout.addWidget(self._selection_label)
+        settings_layout.addWidget(self._selection_label)
+
+        layout.addWidget(self._settings_container)
 
         # ── Quick Action Buttons ──
         btn_row = QHBoxLayout()
         btn_row.setSpacing(6)
 
-        import os
-        from PyQt6.QtGui import QIcon
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
-
         self._btn_explain = QPushButton(self.tr(" Explain"))
-        self._btn_explain.setIcon(QIcon(os.path.join(icon_dir, "explain.svg")))
+        self._btn_explain.setIcon(get_icon("explain.svg"))
         self._btn_explain.setToolTip(self.tr("Explain the selected text in modern English"))
         self._btn_explain.clicked.connect(self._explain)
         btn_row.addWidget(self._btn_explain)
 
         self._btn_translate = QPushButton(self.tr(" Translate"))
-        self._btn_translate.setIcon(QIcon(os.path.join(icon_dir, "translate.svg")))
+        self._btn_translate.setIcon(get_icon("translate.svg"))
         self._btn_translate.setToolTip(self.tr("Translate to English"))
         self._btn_translate.clicked.connect(self._translate)
         btn_row.addWidget(self._btn_translate)
 
         self._btn_search = QPushButton(self.tr(" Research"))
-        self._btn_search.setIcon(QIcon(os.path.join(icon_dir, "search.svg")))
+        self._btn_search.setIcon(get_icon("search.svg"))
         self._btn_search.setToolTip(self.tr("Search for related content and context"))
         self._btn_search.clicked.connect(self._research)
         btn_row.addWidget(self._btn_search)
@@ -209,14 +231,14 @@ class AiPanel(QWidget):
                 border-radius: 6px;
                 padding: 12px;
                 font-size: 16px;
+                font-family: "Segoe UI", "Microsoft YaHei", "Meiryo", sans-serif;
             }
         """)
-        import os
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "ai_model.svg").replace("\\", "/")
+        icon_path = get_icon_path("ai_model.svg")
         text = self.tr("Select text in the reader, then use the buttons above<br>or ask a free-form question.")
         self._response.setHtml(
             '<div style="text-align: center; padding: 30px; color: #6e7681;">'
-            f'<p><img src="{icon_path}" width="32" height="32"></p>'
+            f'<p><img src="file:///{icon_path}" width="32" height="32"></p>'
             f'<p>{text}</p></div>'
         )
         self._response.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -235,10 +257,6 @@ class AiPanel(QWidget):
         else:
             menu = widget.createStandardContextMenu(pos)
             
-        import os
-        from PyQt6.QtGui import QIcon
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
-        
         actions_to_remove = []
         for action in menu.actions():
             raw_text = action.text().replace("&", "")
@@ -247,15 +265,15 @@ class AiPanel(QWidget):
             if text == "Copy" or text == self.tr("Copy"):
                 shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
                 action.setText(self.tr("Copy") + shortcut)
-                action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
+                action.setIcon(get_icon("copy.svg"))
             elif text == "Select All" or text == self.tr("Select All"):
                 shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
                 action.setText(self.tr("Select All") + shortcut)
-                action.setIcon(QIcon(os.path.join(icon_dir, "select_all.svg")))
+                action.setIcon(get_icon("select_all.svg"))
             elif text == "Paste" or text == self.tr("Paste"):
                 shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
                 action.setText(self.tr("Paste") + shortcut)
-                action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
+                action.setIcon(get_icon("copy.svg"))
             elif text == "Undo" or text == self.tr("Undo"):
                 shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
                 action.setText(self.tr("Undo") + shortcut)
@@ -337,16 +355,14 @@ class AiPanel(QWidget):
         backend = self._backends.get(backend_name)
 
         if backend and backend.get_models():
-            import os
-            check_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "check.svg").replace("\\", "/")
+            check_path = get_icon_path("check.svg")
             msg = self.tr("{backend} connected — model: {model}").format(backend=backend_name, model=model)
-            self._status_label.setText(f"<img src='{check_path}' width='14' height='14'> {msg}")
+            self._status_label.setText(f"<img src='file:///{check_path}' width='14' height='14'> {msg}")
             self._set_buttons_enabled(True)
         else:
-            import os
-            err_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "error.svg").replace("\\", "/")
+            err_path = get_icon_path("error.svg")
             msg = self.tr("{backend} unavailable. Check connection or API keys.").format(backend=backend_name)
-            self._status_label.setText(f"<img src='{err_path}' width='14' height='14'> {msg}")
+            self._status_label.setText(f"<img src='file:///{err_path}' width='14' height='14'> {msg}")
             self._set_buttons_enabled(False)
 
     def _set_buttons_enabled(self, enabled: bool) -> None:
@@ -504,17 +520,15 @@ class AiPanel(QWidget):
         self._set_buttons_enabled(True)
         backend = self._backend_combo.currentText()
         model = self._model_combo.currentText()
-        import os
-        check_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "check.svg").replace("\\", "/")
-        self._status_label.setText(f"<img src='{check_path}' width='14' height='14'> {backend} — {model}")
+        check_path = get_icon_path("check.svg")
+        self._status_label.setText(f"<img src='file:///{check_path}' width='14' height='14'> {backend} — {model}")
 
     def _display_error(self, error: str) -> None:
         """Display an error message."""
         # Escape HTML in error text
         safe_error = error.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         safe_error = safe_error.replace("\n", "<br>")
-        import os
-        err_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "error.svg").replace("\\", "/")
+        err_path = get_icon_path("error.svg")
         self._response.setHtml(
             f'<div style="color: #f85149; padding: 12px; '
             f'font-size: 14px; line-height: 1.6;">'

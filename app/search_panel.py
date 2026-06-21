@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (
     QLabel, QPushButton, QHBoxLayout
 )
 from PyQt6.QtCore import pyqtSignal, Qt
+from app.ui_utils import get_icon
 
 class SearchPanel(QWidget):
     result_selected = pyqtSignal(int, str)  # chapter_idx, query
@@ -22,12 +23,10 @@ class SearchPanel(QWidget):
         # Header
         header_layout = QHBoxLayout()
         
-        icon_lbl = QLabel()
-        import os
-        from PyQt6.QtGui import QPixmap, QIcon
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "search.svg")
-        icon_lbl.setPixmap(QIcon(icon_path).pixmap(20, 20))
-        header_layout.addWidget(icon_lbl)
+        header_icon = QLabel()
+      
+        header_icon.setPixmap(get_icon("search.svg").pixmap(24, 24))
+        header_layout.addWidget(header_icon)
         
         self._title_label = QLabel(self.tr(" Search Results"))
         self._title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6e1d8; background: transparent;")

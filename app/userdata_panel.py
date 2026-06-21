@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
                              QPushButton, QListWidget, QListWidgetItem, QTabWidget, QToolButton, QSizePolicy)
 from PyQt6.QtCore import pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QIcon, QPainter, QFontMetrics, QShortcut, QKeySequence
+from app.ui_utils import get_icon
 
 class WrappingListWidget(QListWidget):
     def __init__(self, *args, **kwargs):
@@ -81,9 +82,8 @@ class UserDataPanel(QWidget):
 
         # Header
         header_layout = QHBoxLayout()
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "bookmark.svg")
         icon_label = QLabel()
-        icon_label.setPixmap(QIcon(icon_path).pixmap(20, 20))
+        icon_label.setPixmap(get_icon("bookmark.svg").pixmap(20, 20))
 
         title = QLabel(self.tr(" Bookmarks & Notes"))
         title.setStyleSheet("font-size: 16px; font-weight: bold; background: transparent;")
@@ -114,9 +114,8 @@ class UserDataPanel(QWidget):
         self._notes_list.itemClicked.connect(self._on_note_clicked)
         self._notes_list.itemSelectionChanged.connect(self._on_notes_selection_changed)
 
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
-        self._tabs.addTab(self._bookmarks_list, QIcon(os.path.join(icon_dir, "bookmark.svg")), self.tr("Bookmarks"))
-        self._tabs.addTab(self._notes_list, QIcon(os.path.join(icon_dir, "note.svg")), self.tr("Notes"))
+        self._tabs.addTab(self._bookmarks_list, get_icon("bookmark.svg"), self.tr("Bookmarks"))
+        self._tabs.addTab(self._notes_list, get_icon("note.svg"), self.tr("Notes"))
         
         layout.addWidget(self._tabs)
 
@@ -191,13 +190,14 @@ class UserDataPanel(QWidget):
             btn_layout.setContentsMargins(0, 0, 0, 0)
             
             edit_btn = QToolButton()
-            edit_btn.setIcon(QIcon(os.path.join(icon_dir, "pencil.svg")))
+       
+            edit_btn.setIcon(get_icon("pencil.svg"))
             edit_btn.setIconSize(QSize(20, 20))
             edit_btn.setStyleSheet("background: transparent; border: none;")
             edit_btn.clicked.connect(lambda checked, bid=b["id"], blabel=label_text or "": self.edit_bookmark_requested.emit(bid, blabel))
             
             del_btn = QToolButton()
-            del_btn.setIcon(QIcon(os.path.join(icon_dir, "delete.svg")))
+            del_btn.setIcon(get_icon("delete.svg"))
             del_btn.setIconSize(QSize(20, 20))
             del_btn.setStyleSheet("background: transparent; border: none;")
             del_btn.clicked.connect(lambda checked, bid=b["id"]: self.delete_bookmark_requested.emit(bid))
@@ -260,13 +260,13 @@ class UserDataPanel(QWidget):
             btn_layout.setContentsMargins(0, 0, 0, 0)
             
             edit_btn = QToolButton()
-            edit_btn.setIcon(QIcon(os.path.join(icon_dir, "pencil.svg")))
+            edit_btn.setIcon(get_icon("pencil.svg"))
             edit_btn.setIconSize(QSize(20, 20))
             edit_btn.setStyleSheet("background: transparent; border: none;")
             edit_btn.clicked.connect(lambda checked, nid=n["id"], ntext=n.get("note", ""): self.edit_note_requested.emit(nid, ntext))
             
             del_btn = QToolButton()
-            del_btn.setIcon(QIcon(os.path.join(icon_dir, "delete.svg")))
+            del_btn.setIcon(get_icon("delete.svg"))
             del_btn.setIconSize(QSize(20, 20))
             del_btn.setStyleSheet("background: transparent; border: none;")
             del_btn.clicked.connect(lambda checked, nid=n["id"]: self.delete_note_requested.emit(nid))

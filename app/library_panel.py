@@ -189,10 +189,8 @@ class LibraryPanel(QWidget):
         header_layout = QHBoxLayout()
         
         icon_lbl = QLabel()
-        import os
-        from PyQt6.QtGui import QPixmap, QIcon
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "library.svg")
-        icon_lbl.setPixmap(QIcon(icon_path).pixmap(24, 24))
+        from app.ui_utils import get_icon
+        icon_lbl.setPixmap(get_icon("library.svg").pixmap(24, 24))
         
         header = QLabel(self.tr(" Library"))
         f = header.font()
@@ -201,18 +199,14 @@ class LibraryPanel(QWidget):
         header.setFont(f)
         header.setStyleSheet("color: #c9a96e; background: transparent; padding: 4px;")
         
-        from PyQt6.QtGui import QIcon
-        import os
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
-        
         btn_refresh = QPushButton()
-        btn_refresh.setIcon(QIcon(os.path.join(icon_dir, "refresh.svg")))
+        btn_refresh.setIcon(get_icon("refresh.svg"))
         btn_refresh.setFixedSize(28, 28)
         btn_refresh.setStyleSheet("QPushButton { border: none; background: transparent; padding: 4px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
         btn_refresh.clicked.connect(self.scan_library)
         
         btn_close = QPushButton()
-        btn_close.setIcon(QIcon(os.path.join(icon_dir, "close.svg")))
+        btn_close.setIcon(get_icon("close.svg"))
         btn_close.setFixedSize(28, 28)
         btn_close.setStyleSheet("QPushButton { border: none; background: transparent; padding: 4px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
         btn_close.clicked.connect(self.close_requested.emit)

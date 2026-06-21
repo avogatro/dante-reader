@@ -44,10 +44,8 @@ class FootnotePanel(QWidget):
         header_layout.setSpacing(8)
 
         header_icon = QLabel()
-        import os
-        from PyQt6.QtGui import QPixmap, QIcon
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "footnotes.svg")
-        header_icon.setPixmap(QIcon(icon_path).pixmap(24, 24))
+        from app.ui_utils import get_icon
+        header_icon.setPixmap(get_icon("footnotes.svg").pixmap(24, 24))
         header_layout.addWidget(header_icon)
 
         header_label = QLabel("Footnote")
@@ -60,19 +58,15 @@ class FootnotePanel(QWidget):
 
         header_layout.addStretch()
 
-        import os
-        from PyQt6.QtGui import QIcon
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
-        
         self._btn_read = QPushButton(" Read")
-        self._btn_read.setIcon(QIcon(os.path.join(icon_dir, "read.svg")))
+        self._btn_read.setIcon(get_icon("read.svg"))
         self._btn_read.setToolTip("Read this footnote aloud")
         self._btn_read.setFixedHeight(28)
         self._btn_read.clicked.connect(self._on_read_clicked)
         header_layout.addWidget(self._btn_read)
 
         self._btn_close = QPushButton("")
-        self._btn_close.setIcon(QIcon(os.path.join(icon_dir, "close.svg")))
+        self._btn_close.setIcon(get_icon("close.svg"))
         self._btn_close.setFixedSize(28, 28)
         self._btn_close.setStyleSheet("""
             QPushButton {

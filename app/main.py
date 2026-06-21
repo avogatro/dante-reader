@@ -57,9 +57,8 @@ def main():
     app.setStyleSheet(DARK_QSS)
 
     # Set app icon
-    from PyQt6.QtGui import QIcon
-    icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "logo_mountain.svg")
-    app.setWindowIcon(QIcon(icon_path))
+    from app.ui_utils import get_icon
+    app.setWindowIcon(get_icon("logo_mountain"))
 
     # Set default application font
     ui_font_family = "Segoe UI"
@@ -82,7 +81,7 @@ def main():
             _PROFILER.disable()
             
         elapsed = time.time() - _START_TIME
-        print(f"\n🚀 UI fully rendered in: {elapsed:.3f} seconds\n")
+        print(f"\n[STARTUP] UI fully rendered in: {elapsed:.3f} seconds\n")
         
         if _PROFILER:
             # Print profiler stats

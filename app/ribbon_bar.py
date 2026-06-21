@@ -5,10 +5,7 @@ from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
     QTabWidget, QComboBox, QLineEdit, QSizePolicy, QToolButton, QFrame, QMenu
 )
-
-def get_icon(name: str) -> QIcon:
-    path = os.path.join(os.path.dirname(__file__), "assets", "icons", f"{name}.svg")
-    return QIcon(path)
+from app.ui_utils import get_icon
 
 class RibbonButton(QToolButton):
     def __init__(self, text, icon_name, tooltip=None, parent=None):
@@ -74,9 +71,7 @@ class CustomTitleBar(QWidget):
         
         # App Logo / System Menu
         self.app_logo = QToolButton()
-        from PyQt6.QtGui import QPixmap, QIcon
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "logo_mountain.svg")
-        self.app_logo.setIcon(QIcon(icon_path))
+        self.app_logo.setIcon(get_icon("logo_mountain.svg"))
         self.app_logo.setIconSize(QSize(24, 24))
         self.app_logo.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0px 6px; } QToolButton::menu-indicator { image: none; }")
         self.app_logo.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
@@ -209,9 +204,7 @@ class CustomTitleBar(QWidget):
     def _show_search_context_menu(self, pos) -> None:
         menu = self.search_input.createStandardContextMenu()
         
-        import os
-        from PyQt6.QtGui import QIcon
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
+       
         
         for action in menu.actions():
             raw_text = action.text().replace("&", "")
@@ -220,15 +213,15 @@ class CustomTitleBar(QWidget):
             if text == "Copy" or text == self.tr("Copy"):
                 shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
                 action.setText(self.tr("Copy") + shortcut)
-                action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
+                action.setIcon(get_icon("copy.svg"))
             elif text == "Select All" or text == self.tr("Select All"):
                 shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
                 action.setText(self.tr("Select All") + shortcut)
-                action.setIcon(QIcon(os.path.join(icon_dir, "select_all.svg")))
+                action.setIcon(get_icon("select_all.svg"))
             elif text == "Paste" or text == self.tr("Paste"):
                 shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
                 action.setText(self.tr("Paste") + shortcut)
-                action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
+                action.setIcon(get_icon("copy.svg"))
             elif text == "Undo" or text == self.tr("Undo"):
                 shortcut = ("\t" + raw_text.split('\t')[1]) if '\t' in raw_text else ""
                 action.setText(self.tr("Undo") + shortcut)

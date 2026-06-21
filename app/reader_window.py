@@ -32,6 +32,7 @@ from .url_scheme_handler import EpubSchemeHandler
 from .dictionary import DictionaryEngine
 from .config import load_api_key, load_prefs, save_prefs
 from .user_data import UserDataManager
+from app.ui_utils import get_icon
 
 class BookLoaderThread(QThread):
     finished_loading = pyqtSignal(object, str)  # book_obj, path
@@ -172,14 +173,12 @@ class ReaderWindow(QMainWindow):
         self._userdata_panel = UserDataPanel(self)
 
         # ── Right Sidebar (AI Companion / Search) ──
-        import os
-        from PyQt6.QtGui import QIcon
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
+        
         self._right_tabs = QTabWidget()
-        self._right_tabs.addTab(self._ai, QIcon(os.path.join(icon_dir, "ai_model.svg")), self.tr(" AI Companion"))
-        self._right_tabs.addTab(self._footnotes_panel, QIcon(os.path.join(icon_dir, "footnotes.svg")), self.tr(" Footnotes"))
-        self._right_tabs.addTab(self._search_panel, QIcon(os.path.join(icon_dir, "search.svg")), self.tr(" Search"))
-        self._right_tabs.addTab(self._userdata_panel, QIcon(os.path.join(icon_dir, "bookmark.svg")), self.tr(" Notes"))
+        self._right_tabs.addTab(self._ai, get_icon("ai_model.svg"), self.tr(" AI Companion"))
+        self._right_tabs.addTab(self._userdata_panel, get_icon("bookmark.svg"), self.tr(" Notes"))
+        self._right_tabs.addTab(self._search_panel, get_icon("search.svg"), self.tr(" Search"))
+        self._right_tabs.addTab(self._footnotes_panel, get_icon("footnotes.svg"), self.tr(" Footnotes"))
         self._right_tabs.setMinimumWidth(320)
         
         # Add a right-aligned close button to the tab bar
@@ -187,11 +186,9 @@ class ReaderWindow(QMainWindow):
         corner_layout = QHBoxLayout(corner_widget)
         corner_layout.setContentsMargins(0, 0, 4, 4)
     
-        from PyQt6.QtGui import QIcon
-        import os
-        icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "close.svg")
+        
         close_btn = QPushButton()
-        close_btn.setIcon(QIcon(icon_path))
+        close_btn.setIcon(get_icon("close.svg"))
         close_btn.setFixedSize(28, 28)
         close_btn.setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
         close_btn.clicked.connect(self._toggle_sidebar)
@@ -636,7 +633,7 @@ class ReaderWindow(QMainWindow):
         try:
             import time
             self._load_start_time = time.time()
-            print(f"📖 [TIMER] Starting background book parse for: {path}", flush=True)
+            print(f"[TIMER] Starting background book parse for: {path}", flush=True)
 
             self._statusbar.showMessage(self.tr("Loading: {path}...").format(path=path))
             
@@ -667,7 +664,7 @@ class ReaderWindow(QMainWindow):
         import time
         if hasattr(self, '_load_start_time'):
             load_time = time.time() - self._load_start_time
-            print(f"✅ [TIMER] Book fully parsed in background in: {load_time:.3f} seconds", flush=True)
+            print(f"[TIMER] Book fully parsed in background in: {load_time:.3f} seconds", flush=True)
 
         self._loading_overlay.hide()
         self._current_book = book_obj

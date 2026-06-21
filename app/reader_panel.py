@@ -38,7 +38,7 @@ from .dark_theme import READER_DARK_CSS
 from .epub_loader import EpubBook
 from .pdf_book import PdfBook
 from .user_data import UserDataManager
-
+from app.ui_utils import get_icon, get_icon_path
 
 class SourceViewerWindow(QMainWindow):
     """
@@ -281,6 +281,55 @@ class ReaderPanel(QWidget):
         layout.addWidget(self._web, 1)
 
         self._translation_manager = None
+        self.show_placeholder()
+
+    def show_placeholder(self) -> None:
+        """Display the app logo and name when no book is loaded."""
+        icon_path = get_icon_path("logo_mountain.svg")
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{
+                    background-color: #0d1117;
+                    color: #8b949e;
+                    font-family: system-ui, sans-serif;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    user-select: none;
+                }}
+                img {{
+                    width: 120px;
+                    opacity: 0.8;
+                    margin-bottom: 20px;
+                }}
+                h1 {{
+                    color: #c9a96e;
+                    font-size: 28px;
+                    margin: 0;
+                    font-weight: 600;
+                }}
+                p {{
+                    font-size: 15px;
+                    margin-top: 10px;
+                    opacity: 0.7;
+                }}
+            </style>
+        </head>
+        <body>
+            <img src="file:///{icon_path}" alt="Logo">
+            <h1>Dante Reader</h1>
+            <p>Open a book from the Library to start reading</p>
+        </body>
+        </html>
+        """
+        import os
+        self._web.setHtml(html, QUrl(f"file:///{os.path.dirname(__file__).replace(chr(92), '/')}"))
 
     def set_tts_target(self, target: str):
         self._tts_target = target
@@ -1470,26 +1519,22 @@ class ReaderPanel(QWidget):
         """Show custom right-click context menu with View Source option."""
         menu = QMenu(self)
 
-        import os
-        from PyQt6.QtGui import QIcon
-        icon_dir = os.path.join(os.path.dirname(__file__), "assets", "icons")
-
         # Keep standard actions: Copy, Select All
         page = self._web.page()
         copy_action = page.action(QWebEnginePage.WebAction.Copy)
         copy_action.setText(self.tr("Copy") + "\tCtrl+C")
-        copy_action.setIcon(QIcon(os.path.join(icon_dir, "copy.svg")))
+        copy_action.setIcon(get_icon("copy.svg"))
         copy_action.setShortcut("Ctrl+C")
         select_all_action = page.action(QWebEnginePage.WebAction.SelectAll)
         select_all_action.setText(self.tr("Select All") + "\tCtrl+A")
-        select_all_action.setIcon(QIcon(os.path.join(icon_dir, "select_all.svg")))
+        select_all_action.setIcon(get_icon("select_all.svg"))
         select_all_action.setShortcut("Ctrl+A")
         menu.addAction(copy_action)
         menu.addAction(select_all_action)
         menu.addSeparator()
 
         # Custom: View Page Source
-        source_action = QAction(QIcon(os.path.join(icon_dir, "code.svg")), self.tr("View Page Source"), self)
+        source_action = QAction(get_icon("code.svg"), self.tr("View Page Source"), self)
         source_action.setShortcut("Ctrl+U")
         source_action.triggered.connect(self._open_source_viewer)
         menu.addAction(source_action)
@@ -1499,29 +1544,29 @@ class ReaderPanel(QWidget):
         if selected_text:
             menu.addSeparator()
             
-            read_sel_action = QAction(QIcon(os.path.join(icon_dir, "read.svg")), self.tr("Read Selected Text"), self)
+            read_sel_action = QAction(get_icon("read.svg"), self.tr("Read Selected Text"), self)
             read_sel_action.setShortcut("Ctrl+Shift+S")
             read_sel_action.triggered.connect(lambda: self.read_selection_requested.emit(selected_text))
             menu.addAction(read_sel_action)
             
-            explain_action = QAction(QIcon(os.path.join(icon_dir, "explain.svg")), self.tr("AI Explain"), self)
+            explain_action = QAction(get_icon("explain.svg"), self.tr("AI Explain"), self)
             explain_action.setShortcut("Ctrl+E")
             explain_action.triggered.connect(self.ai_explain_requested.emit)
             menu.addAction(explain_action)
             
-            translate_action = QAction(QIcon(os.path.join(icon_dir, "translate.svg")), self.tr("AI Translate"), self)
+            translate_action = QAction(get_icon("translate.svg"), self.tr("AI Translate"), self)
             translate_action.setShortcut("Ctrl+T")
             translate_action.triggered.connect(self.ai_translate_requested.emit)
             menu.addAction(translate_action)
             
         else:
             menu.addSeparator()
-            bm_action = QAction(QIcon(os.path.join(icon_dir, "bookmark.svg")), self.tr("Add Bookmark"), self)
+            bm_action = QAction(get_icon("bookmark.svg"), self.tr("Add Bookmark"), self)
             bm_action.setShortcut("Ctrl+B")
             bm_action.triggered.connect(self._trigger_add_bookmark)
             menu.addAction(bm_action)
             
-        note_action = QAction(QIcon(os.path.join(icon_dir, "note.svg")), self.tr("Add Note"), self)
+        note_action = QAction(get_icon("note.svg"), self.tr("Add Note"), self)
         note_action.setShortcut("Ctrl+N")
         note_action.triggered.connect(lambda: self._trigger_add_note(selected_text))
         menu.addAction(note_action)
@@ -1531,29 +1576,29 @@ class ReaderPanel(QWidget):
         # Custom: Dictionary Lookup
         # We also trigger Dictionary if selected text is a single word.
         if selected_text and " " not in selected_text and len(selected_text) < 30:
-            dict_action = QAction(QIcon(os.path.join(icon_dir, "book-a.svg")), self.tr("Dictionary Lookup"), self)
+            dict_action = QAction(get_icon("book-a.svg"), self.tr("Dictionary Lookup"), self)
             dict_action.triggered.connect(lambda: self.dictionary_lookup_requested.emit(selected_text))
             menu.addAction(dict_action)
             
         menu.addSeparator()
-        play_action = QAction(QIcon(os.path.join(icon_dir, "play.svg")), self.tr("Play from Cursor / Play Chapter"), self)
+        play_action = QAction(get_icon("play.svg"), self.tr("Play from Cursor / Play Chapter"), self)
         play_action.setShortcut("F5")
         play_action.triggered.connect(self.play_chapter_requested.emit)
         menu.addAction(play_action)
         
-        stop_action = QAction(QIcon(os.path.join(icon_dir, "stop.svg")), self.tr("Stop TTS"), self)
-        stop_action = QAction(QIcon(os.path.join(icon_dir, "stop.svg")), self.tr("Stop TTS") + "\tF7", self)
+        stop_action = QAction(get_icon("stop.svg"), self.tr("Stop TTS"), self)
+        stop_action = QAction(get_icon("stop.svg"), self.tr("Stop TTS") + "\tF7", self)
         stop_action.setShortcut("F7")
         stop_action.triggered.connect(self.stop_tts_requested.emit)
         menu.addAction(stop_action)
         
         menu.addSeparator()
-        prev_action = QAction(QIcon(os.path.join(icon_dir, "prev.svg")), self.tr("Previous Page") + "\tLeft", self)
+        prev_action = QAction(get_icon("prev.svg"), self.tr("Previous Page") + "\tLeft", self)
         prev_action.setShortcut("Left")
         prev_action.triggered.connect(self.prev_chapter_requested.emit)
         menu.addAction(prev_action)
         
-        next_action = QAction(QIcon(os.path.join(icon_dir, "next.svg")), self.tr("Next Page") + "\tRight", self)
+        next_action = QAction(get_icon("next.svg"), self.tr("Next Page") + "\tRight", self)
         next_action.setShortcut("Right")
         next_action.triggered.connect(self.next_chapter_requested.emit)
         menu.addAction(next_action)
