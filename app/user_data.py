@@ -14,6 +14,7 @@ class UserDataManager:
         
         # In-memory data store
         self.data = {
+            "chapter": 0,
             "bookmarks": [],
             "notes": []
         }
@@ -26,6 +27,7 @@ class UserDataManager:
             try:
                 with open(self.data_file, 'r', encoding='utf-8') as f:
                     content = json.load(f)
+                    self.data["chapter"] = content.get("chapter", 0)
                     self.data["bookmarks"] = content.get("bookmarks", [])
                     self.data["notes"] = content.get("notes", [])
             except Exception as e:
@@ -38,6 +40,15 @@ class UserDataManager:
                 json.dump(self.data, f, ensure_ascii=False, indent=2)
         except Exception as e:
             print(f"Failed to save user data to {self.data_file}: {e}")
+
+    # --- Progress ---
+    
+    def get_progress(self) -> int:
+        return self.data.get("chapter", 0)
+        
+    def set_progress(self, chapter: int) -> None:
+        self.data["chapter"] = chapter
+        self.save()
 
     # --- Bookmarks ---
     

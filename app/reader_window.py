@@ -80,31 +80,6 @@ class DictionaryLLMWorker(QThread):
         except Exception as e:
             self.error.emit(str(e))
 
-class LanguageDetectorWorker(QThread):
-    finished_lang = pyqtSignal(str)
-    
-    def __init__(self, backend, model_name: str, text_sample: str, parent=None):
-        super().__init__(parent)
-        self.backend = backend
-        self.model_name = model_name
-        self.text_sample = text_sample
-
-    def run(self):
-        prompt = (
-            f"What language is the following text written in? "
-            f"Reply ONLY with the language name (e.g. 'English', 'Italian', 'French'). "
-            f"Do not write a full sentence. Just the language name.\n\n"
-            f"Text:\n{self.text_sample[:1000]}"
-        )
-        try:
-            result = self.backend.generate(prompt, self.model_name).strip()
-            # Clean up potential LLM chattiness
-            result = result.replace("The text is written in", "").replace("The language is", "").strip(" .\n\"'")
-            if result:
-                self.finished_lang.emit(result)
-        except Exception:
-            pass # Silent failure for background detection
-
 class NoteDialog(QWidget):
     def __init__(self, title, prompt, text="", parent=None):
         from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton
@@ -693,36 +668,22 @@ class ReaderWindow(QMainWindow):
                 self._title_bar.chapter_combo.addItem(f"{i+1}. {title}")
         self._title_bar.chapter_combo.blockSignals(False)
             
-        # ── Language Detection ──
-        if not getattr(self._current_book, "language", ""):
-            cached_langs = self._prefs.setdefault("book_languages", {})
-            if path in cached_langs:
-                self._current_book.language = cached_langs[path]
-            else:
-                backend_name = self._ai._backend_combo.currentText()
-                model_name = self._ai._model_combo.currentText()
-                backend = self._ai._backends.get(backend_name)
-                
-                if backend and model_name and self._current_book.get_chapter_count() > 0:
-                    text_sample = ""
-                    try:
-                        first_chap = self._current_book.get_chapter(0)
-                        if hasattr(first_chap, "get_html"):
-                            text_sample = first_chap.get_html()
-                        elif isinstance(first_chap, str):
-                            text_sample = first_chap
-                    except Exception:
-                        pass
-                        
-                    if len(text_sample) > 50:
-                        self._lang_worker = LanguageDetectorWorker(backend, model_name, text_sample, self)
-                        self._lang_worker.finished_lang.connect(lambda lang, p=path: self._on_language_detected(p, lang))
-                        self._lang_worker.start()
-            
-        progress = self._prefs.get("book_progress", {}).get(path, {})
-        saved_chapter = progress.get("chapter", 0)
-        
         self._user_data = UserDataManager(self._current_book.path)
+        
+        # Migrate old progress if needed
+        saved_chapter = self._user_data.get_progress()
+        old_progress = self._prefs.get("book_progress", {}).get(path, {})
+        if saved_chapter == 0 and "chapter" in old_progress:
+            saved_chapter = old_progress["chapter"]
+            self._user_data.set_progress(saved_chapter)
+            
+            # Clean up old progress
+            if "book_progress" in self._prefs and path in self._prefs["book_progress"]:
+                del self._prefs["book_progress"][path]
+                if not self._prefs["book_progress"]:
+                    del self._prefs["book_progress"]
+                save_prefs(self._prefs)
+        
         self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
         
         self._reader.load_book(self._current_book)
@@ -754,13 +715,6 @@ class ReaderWindow(QMainWindow):
             self._footnotes_panel.load_footnotes(self._current_book.footnotes)
         else:
             self._footnotes_panel.load_footnotes({})
-
-    def _on_language_detected(self, path: str, lang: str) -> None:
-        if self._current_book and getattr(self._current_book, "path", "") == path:
-            self._current_book.language = lang
-        self._prefs.setdefault("book_languages", {})[path] = lang
-        save_prefs(self._prefs)
-        self._statusbar.showMessage(self.tr("Detected book language: {lang}").format(lang=lang), 4000)
 
     def _on_footnote_requested(self, foot_id: str) -> None:
         target = 320
@@ -1152,6 +1106,19 @@ class ReaderWindow(QMainWindow):
         save_prefs(self._prefs)
         # We don't auto-translate immediately on language change anymore.
 
+    def _on_chapter_changed(self, index: int) -> None:
+        self._title_bar.chapter_combo.blockSignals(True)
+        self._title_bar.chapter_combo.setCurrentIndex(index)
+        self._title_bar.chapter_combo.blockSignals(False)
+        
+        if self._current_book:
+            total = self._current_book.get_chapter_count()
+            self._title_bar.chapter_info.setText(f"{index+1} / {total}")
+            
+        """Save the current chapter progress for the active EPUB."""
+        if self._user_data:
+            self._user_data.set_progress(index)
+
     # ═══════════════════════════════════
     # Window Events
     # ═══════════════════════════════════
@@ -1170,27 +1137,7 @@ class ReaderWindow(QMainWindow):
             
         super().closeEvent(event)
 
-    def _on_chapter_changed(self, index: int) -> None:
-        self._title_bar.chapter_combo.blockSignals(True)
-        self._title_bar.chapter_combo.setCurrentIndex(index)
-        self._title_bar.chapter_combo.blockSignals(False)
-        
-        if getattr(self, "_current_book", None):
-            total = self._current_book.get_chapter_count()
-            self._title_bar.chapter_info.setText(f"{index+1} / {total}")
-        """Save the current chapter progress for the active EPUB."""
-        if not getattr(self, "_current_book", None) or getattr(self._current_book, 'is_pdf', False):
-            return
-        
-        if hasattr(self._current_book, "progress"):
-            self._current_book.progress = index
-            self._current_book.save()
-            return
-            
-        progress_dict = self._prefs.setdefault("book_progress", {})
-        book_data = progress_dict.setdefault(self._current_book.path, {})
-        book_data["chapter"] = index
-        save_prefs(self._prefs)
+
 
     def _on_translation_requested(self, needed_blocks: list) -> None:
         from app.translation_manager import TranslationManager
