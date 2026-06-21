@@ -1,8 +1,7 @@
 import os
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                             QPushButton, QListWidget, QListWidgetItem, QTabWidget, QToolButton, QSizePolicy)
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QTabWidget)
 from PyQt6.QtCore import pyqtSignal, Qt, QSize
-from PyQt6.QtGui import QIcon, QPainter, QFontMetrics, QShortcut, QKeySequence
+from PyQt6.QtGui import QShortcut, QKeySequence
 from app.ui_utils import get_icon
 
 class WrappingListWidget(QListWidget):
@@ -129,21 +128,18 @@ class UserDataPanel(QWidget):
         self._bookmarks_list.clear()
         self._notes_list.clear()
         
-        w_b = self._bookmarks_list.viewport().width()-50
-        w_n = self._notes_list.viewport().width()-50
-        
         # Populate bookmarks
         for b in bookmarks:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, b)
-            item.setSizeHint(QSize(max(w_b, 100), 69))
+            item.setSizeHint(QSize(0, 48))
             self._bookmarks_list.addItem(item)
             
         # Populate notes
         for n in notes:
             item = QListWidgetItem()
             item.setData(Qt.ItemDataRole.UserRole, n)
-            item.setSizeHint(QSize(max(w_n, 100), 69))
+            item.setSizeHint(QSize(0, 145))
             self._notes_list.addItem(item)
             
         from PyQt6.QtCore import QTimer
