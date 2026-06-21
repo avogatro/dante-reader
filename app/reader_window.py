@@ -31,7 +31,7 @@ from .epub_loader import EpubBook
 from .url_scheme_handler import EpubSchemeHandler
 from .dictionary import DictionaryEngine
 from .config import load_api_key, load_prefs, save_prefs
-
+from .user_data import UserDataManager
 
 class BookLoaderThread(QThread):
     finished_loading = pyqtSignal(object, str)  # book_obj, path
@@ -104,6 +104,40 @@ class LanguageDetectorWorker(QThread):
                 self.finished_lang.emit(result)
         except Exception:
             pass # Silent failure for background detection
+
+class NoteDialog(QWidget):
+    def __init__(self, title, prompt, text="", parent=None):
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton
+        super().__init__(parent)
+        self.dialog = QDialog(parent)
+        self.dialog.setWindowTitle(title)
+        self.dialog.resize(600, 400)
+        layout = QVBoxLayout(self.dialog)
+        
+        layout.addWidget(QLabel(prompt))
+        
+        self.text_edit = QTextEdit()
+        self.text_edit.setPlainText(text)
+        layout.addWidget(self.text_edit)
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.addStretch()
+        
+        save_btn = QPushButton(self.tr("Save"))
+        save_btn.clicked.connect(self.dialog.accept)
+        cancel_btn = QPushButton(self.tr("Cancel"))
+        cancel_btn.clicked.connect(self.dialog.reject)
+        
+        btn_layout.addWidget(save_btn)
+        btn_layout.addWidget(cancel_btn)
+        layout.addLayout(btn_layout)
+        
+    def exec(self):
+        from PyQt6.QtWidgets import QDialog
+        return self.dialog.exec() == QDialog.DialogCode.Accepted
+        
+    def textValue(self):
+        return self.text_edit.toPlainText()
 class ReaderWindow(QMainWindow):
     """Main application window for the EPUB Reader."""
 
@@ -153,12 +187,17 @@ class ReaderWindow(QMainWindow):
         # ── Panels ──
         from .footnotes_panel import FootnotesPanel
         from .search_panel import SearchPanel
+        from .user_data import UserDataManager
+        from .userdata_panel import UserDataPanel
         
         self._library = LibraryPanel(self)
         self._reader = ReaderPanel(self._scheme_handler, self)
         self._ai = AiPanel(api_key=load_api_key(), parent=self)
         self._footnotes_panel = FootnotesPanel(self)
         self._search_panel = SearchPanel(self)
+        
+        self._user_data: UserDataManager | None = None
+        self._userdata_panel = UserDataPanel(self)
 
         # ── Right Sidebar (AI Companion / Search) ──
         import os
@@ -168,6 +207,7 @@ class ReaderWindow(QMainWindow):
         self._right_tabs.addTab(self._ai, QIcon(os.path.join(icon_dir, "ai_model.svg")), self.tr(" AI Companion"))
         self._right_tabs.addTab(self._footnotes_panel, QIcon(os.path.join(icon_dir, "footnotes.svg")), self.tr(" Footnotes"))
         self._right_tabs.addTab(self._search_panel, QIcon(os.path.join(icon_dir, "search.svg")), self.tr(" Search"))
+        self._right_tabs.addTab(self._userdata_panel, QIcon(os.path.join(icon_dir, "bookmark.svg")), self.tr(" Notes"))
         self._right_tabs.setMinimumWidth(320)
         
         # Add a right-aligned close button to the tab bar
@@ -315,6 +355,7 @@ class ReaderWindow(QMainWindow):
         tb.search_requested.connect(self._on_search_requested)
         tb.toggle_library.connect(self._toggle_library)
         tb.toggle_sidebar.connect(self._toggle_sidebar)
+        tb.bookmark_requested.connect(self._reader._trigger_add_bookmark)
         tb.scale_requested.connect(self._on_scale_requested)
         tb.lang_requested.connect(self._on_lang_requested)
         
@@ -440,6 +481,16 @@ class ReaderWindow(QMainWindow):
         self._reader.audio_play_requested.connect(self._play_media_audio)
         self._reader.footnote_requested.connect(self._on_footnote_requested)
         self._reader.dictionary_lookup_requested.connect(self._on_dictionary_lookup_requested)
+        
+        self._reader.bookmark_requested.connect(self._on_add_bookmark)
+        self._reader.note_requested.connect(self._on_add_note)
+        
+        # UserDataPanel → Actions
+        self._userdata_panel.navigate_requested.connect(self._reader.navigate_to_percent)
+        self._userdata_panel.delete_bookmark_requested.connect(self._on_delete_bookmark)
+        self._userdata_panel.delete_note_requested.connect(self._on_delete_note)
+        self._userdata_panel.edit_note_requested.connect(self._on_edit_note)
+        self._userdata_panel.edit_bookmark_requested.connect(self._on_edit_bookmark)
 
         # Keyboard shortcuts for Navigation
         from PyQt6.QtGui import QKeySequence
@@ -509,6 +560,80 @@ class ReaderWindow(QMainWindow):
         self._prefs["app_lang"] = lang_code
         save_prefs(self._prefs)
         QMessageBox.information(self, self.tr("Restart Required"), self.tr("Application language set.\nPlease restart the application for the changes to fully take effect."))
+
+    # --- Bookmarks & Notes ---
+    def _on_add_bookmark(self, chapter: int, pct: float):
+        if not self._user_data:
+            return
+            
+        from PyQt6.QtWidgets import QInputDialog
+        label, ok = QInputDialog.getText(self, self.tr("Add Bookmark"), self.tr("Bookmark Label (optional):"))
+        if ok:
+            self._user_data.add_bookmark(chapter, pct, label)
+            self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
+            
+            # Show the notes panel and switch to bookmarks tab
+            if not self._sidebar_container.isVisible() or self._sidebar_container.width() == 0:
+                self._toggle_sidebar()
+            self._right_tabs.setCurrentWidget(self._userdata_panel)
+            self._userdata_panel._tabs.setCurrentIndex(0)
+
+    def _on_add_note(self, chapter: int, pct: float, text: str):
+        if not self._user_data:
+            return
+            
+        prompt = self.tr("Note for:\n\"{text}...\"\n").format(text=text[:50]) if text else self.tr("Enter your note:")
+        dialog = NoteDialog(self.tr("Add Note"), prompt, parent=self)
+        if dialog.exec():
+            note = dialog.textValue()
+            if note.strip():
+                self._user_data.add_note(chapter, pct, text, note)
+                self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
+                
+                if not self._sidebar_container.isVisible() or self._sidebar_container.width() == 0:
+                    self._toggle_sidebar()
+                self._right_tabs.setCurrentWidget(self._userdata_panel)
+                self._userdata_panel._tabs.setCurrentIndex(1)
+
+    def _on_delete_bookmark(self, b_id: str):
+        from PyQt6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(self, self.tr("Delete Bookmark"), self.tr("Are you sure you want to delete this bookmark?"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            if self._user_data and self._user_data.remove_bookmark(b_id):
+                self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
+
+    def _on_delete_note(self, n_id: str):
+        from PyQt6.QtWidgets import QMessageBox
+        reply = QMessageBox.question(self, self.tr("Delete Note"), self.tr("Are you sure you want to delete this note?"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            if self._user_data and self._user_data.remove_note(n_id):
+                self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
+
+    def _on_edit_note(self, n_id: str, old_note: str):
+        if not self._user_data:
+            return
+            
+        dialog = NoteDialog(self.tr("Edit Note"), self.tr("Update your note:"), old_note, parent=self)
+        if dialog.exec():
+            note = dialog.textValue()
+            if note.strip():
+                self._user_data.update_note(n_id, note)
+                self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
+
+    def _on_edit_bookmark(self, b_id: str, old_label: str):
+        if not self._user_data:
+            return
+            
+        from PyQt6.QtWidgets import QInputDialog
+        dialog = QInputDialog(self)
+        dialog.setWindowTitle(self.tr("Edit Bookmark"))
+        dialog.setLabelText(self.tr("Bookmark Label:"))
+        dialog.setTextValue(old_label)
+        dialog.resize(600, dialog.sizeHint().height())
+        if dialog.exec():
+            label = dialog.textValue()
+            self._user_data.update_bookmark(b_id, label)
+            self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
 
     # ═══════════════════════════════════
     # Book Loading
@@ -596,6 +721,9 @@ class ReaderWindow(QMainWindow):
             
         progress = self._prefs.get("book_progress", {}).get(path, {})
         saved_chapter = progress.get("chapter", 0)
+        
+        self._user_data = UserDataManager(self._current_book.path)
+        self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
         
         self._reader.load_book(self._current_book)
         if saved_chapter > 0 and saved_chapter < self._current_book.get_chapter_count():

@@ -202,7 +202,7 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
 > **Symptom:** When swapping from a streaming engine (`Qwen`) to a batch engine (`OmniVoice`), the UI would highlight sentences *before* the audio actually played, and insert massive silences between sentences.
 > **Solution:** You cannot tie UI highlights to the start of a blocking TTS generation call. We split the engine: one thread purely generates and pushes to a `queue.Queue`, and a second thread waits on that queue to instantly trigger the UI highlight exactly as the numpy audio chunk is passed to the sound card.
 
-### ?? Phase 7 Achievements
+### 🏆 Phase 7 Achievements
 
 1. **Global Full-Text Search Engine**
    - Engineered an asynchronous SearchWorker and a highly responsive SearchPanel to instantly search phrases across all chapters of the loaded EPUB/PDF.
@@ -220,7 +220,7 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
    - Discovered that "clearing" highlights by setting el.style.backgroundColor = 'transparent' was causing massive DOM pollution. These hidden spans were overriding new gba(...) spans wrapping around them, completely hiding future highlights from the user.
    - Replaced the CSS hack with a true DOM unwrap algorithm (parent.insertBefore(el.firstChild, el)) that cleanly physically removes the span elements without destroying the underlying text nodes.
 
-### ?? Phase 7 Lessons Learned
+### 💡 Phase 7 Lessons Learned
 
 > [!CAUTION]
 > **The document.execCommand Transparent Span Bug**
@@ -232,4 +232,36 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
 > **innerText vs 	extContent on Detached Nodes**
 > **Symptom:** clone.innerText failed to extract block-level newlines, returning a giant run-on string without spaces.
 > **Diagnosis:** Browser APIs rely on the active CSS layout engine to determine block spacing for innerText. If a node is cloned and *not* attached to the active document body, it has no layout, causing innerText to degrade into basic 	extContent (stripping all block spacing).
-> **Lesson:** When extracting formatted text from a detached DOM clone, manually append a text node containing \n to all block-level elements (p, div, li) and replace <br> tags *before* calling 	extContent.
+> **Lesson:** When extracting formatted text from a detached DOM clone, manually append a text node containing \n to all block-level elements (p, div, li) and replace <br> tags *before* calling `textContent`.
+
+---
+
+## 🌎 Bookmarks, Notes, & LLM Localization (Phase 8)
+
+### 🏆 Phase 8 Achievements
+
+1. **Persistent User Data Management**
+   - Engineered a standalone `UserDataManager` that persists user-created bookmarks, scroll percentages, and text notes cleanly alongside book progression without modifying the original EPUB container.
+   - Built an interactive right-hand User Data Panel featuring floating overlay actions (Edit/Delete).
+   - Handled text-overflow wrapping to prevent long user notes from breaking standard PyQt layouts.
+
+2. **Global Context Menu Shortcut Registration**
+   - Fixed a critical UX flaw where dynamically instantiated context menu shortcuts (like `F5` or `Ctrl+B`) failed to trigger when the right-click menu was closed.
+   - Centralized all reader shortcuts into `QAction`s within `ReaderPanel.__init__` using `Qt.ShortcutContext.WindowShortcut`, establishing robust app-wide keybindings.
+
+3. **LLM-Powered Multi-Language Qt Pipeline**
+   - Fully internationalized the application via `self.tr()`.
+   - Built a dynamic translation engine (`auto_translate_ts.py`) that uses a local Ollama model (or Gemini) to parse newly extracted UI strings from `pylupdate6` and auto-translate them into Spanish, French, German, Japanese, and Chinese.
+
+### 💡 Phase 8 Lessons Learned
+
+> [!WARNING]
+> **Windows PowerShell Tooling Quirks (`grep` & Globs)**
+> **Symptom:** Running standard shell commands like `pylupdate6 app/*.py` or using `grep` returned "PathNotFound" or "CommandNotFound" errors during development.
+> **Diagnosis:** Unlike Unix shells (Bash/Zsh), Windows PowerShell does **not** natively expand wildcard (`*`) globs into file lists before passing them to the executable. Furthermore, `grep` is a Unix utility that doesn't exist natively on Windows.
+> **Lesson:** When writing cross-platform development scripts, avoid relying on standard Unix shell tooling. Instead of `pylupdate6 translations/*.ts`, use Python's built-in `glob` module inside a temporary runner script (`subprocess.run(["pyside6-lrelease"] + glob.glob("translations/*.ts"))`) to guarantee reliable execution on Windows.
+
+> [!TIP]
+> **Qt Action Shortcomings in Dynamic Menus**
+> **Symptom:** Assigning `.setShortcut("F5")` to a `QAction` inside `QWebEngineView`'s dynamically generated context menu only registered the key when the menu was physically drawn on screen.
+> **Lesson:** Never rely on transient menus to handle global shortcuts. Always create a persistent `QAction` in the parent widget's constructor, assign `setShortcutContext(Qt.ShortcutContext.WindowShortcut)`, and add it to the parent layout via `addAction()` to decouple the shortcut from the menu's visibility state.

@@ -58,6 +58,7 @@ class CustomTitleBar(QWidget):
     
     toggle_library = pyqtSignal()
     toggle_sidebar = pyqtSignal()
+    bookmark_requested = pyqtSignal()
     
     scale_requested = pyqtSignal(float)
     lang_requested = pyqtSignal(str)
@@ -162,6 +163,10 @@ class CustomTitleBar(QWidget):
         self.btn_side = self._make_btn("sidebar", self.tr("Toggle Sidebar"))
         self.btn_side.clicked.connect(self.toggle_sidebar.emit)
         
+        self.btn_bookmark = self._make_btn("bookmark", self.tr("Bookmark Page"))
+        self.btn_bookmark.clicked.connect(self.bookmark_requested.emit)
+        
+        layout.addWidget(self.btn_bookmark)
         layout.addWidget(self.btn_lib)
         layout.addWidget(self.btn_side)
         layout.addSpacing(10)

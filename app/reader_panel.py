@@ -37,7 +37,7 @@ from PyQt6.QtWebEngineCore import (
 from .dark_theme import READER_DARK_CSS
 from .epub_loader import EpubBook
 from .pdf_book import PdfBook
-
+from .user_data import UserDataManager
 
 
 class SourceViewerWindow(QMainWindow):
@@ -113,6 +113,9 @@ class ReaderPanel(QWidget):
     focus_toggle_requested = pyqtSignal()
     search_requested = pyqtSignal(str)
     
+    bookmark_requested = pyqtSignal(int, float)
+    note_requested = pyqtSignal(int, float, str)
+    
     # Text selection signals
     ai_explain_requested = pyqtSignal()
     ai_translate_requested = pyqtSignal()
@@ -147,13 +150,26 @@ class ReaderPanel(QWidget):
         self._setup_ui()
         
         # Register global shortcuts for actions not in the main window menu
-        from PyQt6.QtGui import QAction
+        from PyQt6.QtGui import QAction, QKeySequence
         from PyQt6.QtCore import Qt
-        self._source_shortcut = QAction(self)
-        self._source_shortcut.setShortcut("Ctrl+U")
-        self._source_shortcut.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
-        self._source_shortcut.triggered.connect(self._open_source_viewer)
-        self.addAction(self._source_shortcut)
+        
+        shortcuts = [
+            ("Ctrl+U", self._open_source_viewer),
+            ("F5", self.play_chapter_requested.emit),
+            ("F7", self.stop_tts_requested.emit),
+            ("Ctrl+E", self.ai_explain_requested.emit),
+            ("Ctrl+T", self.ai_translate_requested.emit),
+            ("Ctrl+Shift+S", self._trigger_read_selection_from_shortcut),
+            ("Ctrl+B", self._trigger_add_bookmark),
+            ("Ctrl+N", self._trigger_add_note_from_shortcut),
+        ]
+        
+        for key, slot in shortcuts:
+            action = QAction(self)
+            action.setShortcut(QKeySequence(key))
+            action.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+            action.triggered.connect(slot)
+            self.addAction(action)
 
     def _setup_ui(self) -> None:
         layout = QVBoxLayout(self)
@@ -1459,7 +1475,7 @@ class ReaderPanel(QWidget):
         source_action.triggered.connect(self._open_source_viewer)
         menu.addAction(source_action)
 
-        # Custom: Read Selection (if text is selected)
+        # Custom: Read Selection / AI (if text is selected)
         selected_text = self._page.selectedText().strip()
         if selected_text:
             menu.addSeparator()
@@ -1479,6 +1495,27 @@ class ReaderPanel(QWidget):
             translate_action.triggered.connect(self.ai_translate_requested.emit)
             menu.addAction(translate_action)
             
+        else:
+            menu.addSeparator()
+            bm_action = QAction(QIcon(os.path.join(icon_dir, "bookmark.svg")), self.tr("Add Bookmark"), self)
+            bm_action.setShortcut("Ctrl+B")
+            bm_action.triggered.connect(self._trigger_add_bookmark)
+            menu.addAction(bm_action)
+            
+        note_action = QAction(QIcon(os.path.join(icon_dir, "note.svg")), self.tr("Add Note"), self)
+        note_action.setShortcut("Ctrl+N")
+        note_action.triggered.connect(lambda: self._trigger_add_note(selected_text))
+        menu.addAction(note_action)
+            
+        menu.addSeparator()
+
+        # Custom: Dictionary Lookup
+        # We also trigger Dictionary if selected text is a single word.
+        if selected_text and " " not in selected_text and len(selected_text) < 30:
+            dict_action = QAction(QIcon(os.path.join(icon_dir, "book.svg")), self.tr("Dictionary Lookup"), self)
+            dict_action.triggered.connect(lambda: self.dictionary_lookup_requested.emit(selected_text))
+            menu.addAction(dict_action)
+            
         menu.addSeparator()
         play_action = QAction(QIcon(os.path.join(icon_dir, "play.svg")), self.tr("Play from Cursor / Play Chapter"), self)
         play_action.setShortcut("F5")
@@ -1486,17 +1523,18 @@ class ReaderPanel(QWidget):
         menu.addAction(play_action)
         
         stop_action = QAction(QIcon(os.path.join(icon_dir, "stop.svg")), self.tr("Stop TTS"), self)
+        stop_action = QAction(QIcon(os.path.join(icon_dir, "stop.svg")), self.tr("Stop TTS") + "\tF7", self)
         stop_action.setShortcut("F7")
         stop_action.triggered.connect(self.stop_tts_requested.emit)
         menu.addAction(stop_action)
         
         menu.addSeparator()
-        prev_action = QAction(QIcon(os.path.join(icon_dir, "prev.svg")), self.tr("Previous Page"), self)
+        prev_action = QAction(QIcon(os.path.join(icon_dir, "prev.svg")), self.tr("Previous Page") + "\tLeft", self)
         prev_action.setShortcut("Left")
         prev_action.triggered.connect(self.prev_chapter_requested.emit)
         menu.addAction(prev_action)
         
-        next_action = QAction(QIcon(os.path.join(icon_dir, "next.svg")), self.tr("Next Page"), self)
+        next_action = QAction(QIcon(os.path.join(icon_dir, "next.svg")), self.tr("Next Page") + "\tRight", self)
         next_action.setShortcut("Right")
         next_action.triggered.connect(self.next_chapter_requested.emit)
         menu.addAction(next_action)
@@ -1543,5 +1581,35 @@ class ReaderPanel(QWidget):
             )
             win.show()
             self._source_windows.append(win)
-
         self._get_active_page().toHtml(on_html)
+
+    def _trigger_add_note(self, selected_text: str):
+        js = "var h = document.documentElement.scrollHeight - window.innerHeight; h = h > 0 ? h : 1; window.scrollY / h;"
+        self._get_active_page().runJavaScript(js, lambda pct: self.note_requested.emit(self.get_current_chapter_index(), float(pct or 0.0), selected_text))
+
+    def _trigger_add_note_from_shortcut(self):
+        # First get selected text, then trigger add note
+        self._get_active_page().runJavaScript("window.getSelection().toString();", self._trigger_add_note)
+
+    def _trigger_read_selection_from_shortcut(self):
+        self._get_active_page().runJavaScript("window.getSelection().toString();", self.read_selection_requested.emit)
+
+    def _trigger_add_bookmark(self):
+        js = "var h = document.documentElement.scrollHeight - window.innerHeight; h = h > 0 ? h : 1; window.scrollY / h;"
+        self._get_active_page().runJavaScript(js, lambda pct: self.bookmark_requested.emit(self.get_current_chapter_index(), float(pct or 0.0)))
+
+    def navigate_to_percent(self, chapter_idx: int, pct: float) -> None:
+        def _do_scroll():
+            js = f"var h = document.documentElement.scrollHeight - window.innerHeight; h = h > 0 ? h : 1; window.scrollTo(0, {pct} * h);"
+            self._get_active_page().runJavaScript(js)
+
+        if chapter_idx != self._current_chapter:
+            try:
+                self._page.loadFinished.disconnect(self._pending_scroll)
+            except:
+                pass
+            self._pending_scroll = lambda ok: _do_scroll() if ok else None
+            self._page.loadFinished.connect(self._pending_scroll)
+            self.go_to_chapter(chapter_idx)
+        else:
+            _do_scroll()
