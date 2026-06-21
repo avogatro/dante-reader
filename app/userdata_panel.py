@@ -5,18 +5,59 @@ from PyQt6.QtCore import pyqtSignal, Qt, QSize
 from PyQt6.QtGui import QIcon, QPainter, QFontMetrics
 
 class WrappingListWidget(QListWidget):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._last_width = -1
+
     def resizeEvent(self, event):
         super().resizeEvent(event)
         width = self.viewport().width()
-        for i in range(self.count()):
+        
+        # Prevent infinite layout loops
+        if width == self._last_width:
+            return
+        self._last_width = width
+        
+        # Defer the heavy calculation so the UI updates instantly
+        from PyQt6.QtCore import QTimer
+        QTimer.singleShot(10, lambda: self._recalc_heights(width))
+        
+    def _recalc_heights(self, width: int):
+        # Double check width hasn't changed since the timer started
+        if self.viewport().width() != width:
+            return
+            
+        self._recalc_idx = 0
+        self._recalc_width = width
+        self._process_next_chunk()
+        
+    def _process_next_chunk(self):
+        if self.viewport().width() != self._recalc_width:
+            return
+            
+        chunk_size = 15
+        end = min(self._recalc_idx + chunk_size, self.count())
+        
+        for i in range(self._recalc_idx, end):
             item = self.item(i)
+            if not item:
+                continue
+                
             widget = self.itemWidget(item)
             if widget:
-                new_height = widget.heightForWidth(width)
+                new_height = widget.heightForWidth(self._recalc_width)
                 if new_height > 0:
-                    item.setSizeHint(QSize(width, new_height))
+                    new_size = QSize(self._recalc_width, new_height)
                 else:
-                    item.setSizeHint(QSize(width, widget.sizeHint().height()))
+                    new_size = QSize(self._recalc_width, widget.sizeHint().height())
+                
+                if item.sizeHint() != new_size:
+                    item.setSizeHint(new_size)
+                    
+        self._recalc_idx = end
+        if self._recalc_idx < self.count():
+            from PyQt6.QtCore import QTimer
+            QTimer.singleShot(1, self._process_next_chunk)
 
 class UserDataPanel(QWidget):
     # Emit chapter index, scroll percent

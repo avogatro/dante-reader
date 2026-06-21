@@ -5,7 +5,7 @@ Shows cover art thumbnails with titles in a scrollable grid layout.
 
 import os
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QThread
-from PyQt6.QtGui import QPixmap, QIcon, QFont, QColor, QPainter, QPen
+from PyQt6.QtGui import QPixmap, QImage, QIcon, QFont, QColor, QPainter, QPen
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -26,12 +26,12 @@ from .dante_book import DanteBook
 from .config import get_epubs_dir
 
 
-def _generate_placeholder_cover(title: str, width: int = 140, height: int = 200) -> QPixmap:
+def _generate_placeholder_cover(title: str, width: int = 140, height: int = 200) -> QImage:
     """Generate a simple placeholder cover with the book title."""
-    pixmap = QPixmap(width, height)
-    pixmap.fill(QColor("#1c2333"))
+    image = QImage(width, height, QImage.Format.Format_ARGB32)
+    image.fill(QColor("#1c2333"))
 
-    painter = QPainter(pixmap)
+    painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
     # Border
@@ -53,7 +53,7 @@ def _generate_placeholder_cover(title: str, width: int = 140, height: int = 200)
     painter.setFont(font)
 
     # Word-wrap the title inside the cover
-    text_rect = pixmap.rect().adjusted(14, 20, -14, -20)
+    text_rect = image.rect().adjusted(14, 20, -14, -20)
     painter.drawText(
         text_rect,
         Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
@@ -61,10 +61,11 @@ def _generate_placeholder_cover(title: str, width: int = 140, height: int = 200)
     )
 
     painter.end()
-    return pixmap
+    return image
 
 
 class LibraryScannerWorker(QThread):
+    books_discovered = pyqtSignal(list)
     book_found = pyqtSignal(str, str, object)
     finished_scan = pyqtSignal(int)
 
@@ -82,6 +83,25 @@ class LibraryScannerWorker(QThread):
                     book_files.append(rel_path)
                     
         book_files.sort(key=str.lower)
+        
+        discovered = []
+        for filename in book_files:
+            full_path = os.path.join(epubs_dir, filename)
+            basename = os.path.basename(filename)
+            title = os.path.splitext(basename)[0]
+            import re
+            title_clean = re.sub(r"\s*\[\d+\]\s*$", "", title)
+            discovered.append((title_clean, full_path))
+            
+        self.books_discovered.emit(discovered)
+
+        import hashlib
+        import time
+        from .config import PROJECT_ROOT
+        
+        cache_dir = os.path.join(PROJECT_ROOT, "app", ".cover_cache")
+        if not os.path.exists(cache_dir):
+            os.makedirs(cache_dir, exist_ok=True)
 
         for filename in book_files:
             full_path = os.path.join(epubs_dir, filename)
@@ -90,20 +110,56 @@ class LibraryScannerWorker(QThread):
             import re
             title_clean = re.sub(r"\s*\[\d+\]\s*$", "", title)
 
-            cover_data = None
+            cover_image = None
+            
+            # ── Check Cache ──
+            cache_path = ""
             try:
-                if filename.lower().endswith(".pdf"):
-                    book = PdfBook(full_path)
-                elif filename.lower().endswith((".dante", ".zip")):
-                    book = DanteBook(full_path)
-                else:
-                    book = EpubBook(full_path)
-                    
-                cover_data = book.get_cover_image()
+                mtime = os.path.getmtime(full_path)
+                cache_key = hashlib.md5(f"{full_path}_{mtime}".encode("utf-8")).hexdigest()
+                cache_path = os.path.join(cache_dir, f"{cache_key}.png")
+                
+                if os.path.exists(cache_path):
+                    img = QImage(cache_path)
+                    if not img.isNull():
+                        cover_image = img
             except Exception:
                 pass
 
-            self.book_found.emit(title_clean, full_path, cover_data)
+            # ── Cache Miss: Parse Book ──
+            if cover_image is None:
+                try:
+                    if filename.lower().endswith(".pdf"):
+                        book = PdfBook(full_path)
+                    elif filename.lower().endswith((".dante", ".zip")):
+                        book = DanteBook(full_path)
+                    else:
+                        book = EpubBook(full_path)
+                        
+                    cover_data = book.get_cover_image()
+                    if cover_data:
+                        img = QImage()
+                        img.loadFromData(cover_data)
+                        if not img.isNull():
+                            cover_image = img.scaled(
+                                140, 200,
+                                Qt.AspectRatioMode.KeepAspectRatio,
+                                Qt.TransformationMode.SmoothTransformation,
+                            )
+                            # Save to cache
+                            if cache_path:
+                                cover_image.save(cache_path, "PNG")
+                except Exception:
+                    pass
+
+            if cover_image is None:
+                cover_image = _generate_placeholder_cover(title_clean)
+
+            self.book_found.emit(title_clean, full_path, cover_image)
+            
+            # CRITICAL: Force the thread to yield the Python GIL so the main UI thread 
+            # can process events (like clicking tabs) without freezing.
+            time.sleep(0.01)
             
         self.finished_scan.emit(len(book_files))
 
@@ -218,38 +274,46 @@ class LibraryPanel(QWidget):
         self._count_label.setText(self.tr("Scanning library..."))
 
         self._scanner = LibraryScannerWorker()
+        self._scanner.books_discovered.connect(self._on_books_discovered)
         self._scanner.book_found.connect(self._on_book_found)
         self._scanner.finished_scan.connect(self._on_scan_finished)
         self._scanner.start()
 
-    def _on_book_found(self, title_clean: str, full_path: str, cover_data: object) -> None:
-        cover_pixmap = None
-        if cover_data:
-            pix = QPixmap()
-            pix.loadFromData(cover_data)
-            if not pix.isNull():
-                cover_pixmap = pix.scaled(
-                    140, 200,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
+    def _on_books_discovered(self, discovered: list[tuple[str, str]]) -> None:
+        self._list.setUpdatesEnabled(False)
+        
+        # Create one shared placeholder for all items
+        placeholder = _generate_placeholder_cover("Loading...")
+        from PyQt6.QtGui import QPixmap
+        placeholder_pixmap = QPixmap.fromImage(placeholder)
+        
+        for title_clean, full_path in discovered:
+            item = QListWidgetItem()
+            item.setText(title_clean)
+            item.setIcon(QIcon(placeholder_pixmap))
+            item.setData(Qt.ItemDataRole.UserRole, full_path)
+            item.setFont(QFont("Segoe UI", 10))
+            item.setSizeHint(QSize(160, 260))
+            self._list.addItem(item)
+            
+            self._books.append({
+                "path": full_path,
+                "title": title_clean,
+                "cover": placeholder_pixmap,
+            })
+            
+        self._list.setUpdatesEnabled(True)
 
-        if cover_pixmap is None:
-            cover_pixmap = _generate_placeholder_cover(title_clean)
+    def _on_book_found(self, title_clean: str, full_path: str, cover_image: object) -> None:
+        cover_pixmap = QPixmap.fromImage(cover_image)
 
-        self._books.append({
-            "path": full_path,
-            "title": title_clean,
-            "cover": cover_pixmap,
-        })
-
-        item = QListWidgetItem()
-        item.setText(title_clean)
-        item.setIcon(QIcon(cover_pixmap))
-        item.setData(Qt.ItemDataRole.UserRole, full_path)
-        item.setFont(QFont("Segoe UI", 10))
-        item.setSizeHint(QSize(160, 260))
-        self._list.addItem(item)
+        # Update the placeholder item with the real cover
+        for i in range(self._list.count()):
+            item = self._list.item(i)
+            if item.data(Qt.ItemDataRole.UserRole) == full_path:
+                item.setIcon(QIcon(cover_pixmap))
+                self._books[i]["cover"] = cover_pixmap
+                break
         
     def _on_scan_finished(self, count: int) -> None:
         if count == -1:

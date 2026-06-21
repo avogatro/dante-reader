@@ -307,16 +307,17 @@ class AiPanel(QWidget):
         self._model_combo.clear()
         
         backend = self._backends.get(backend_name)
-        if backend and backend.is_available():
+        if backend:
             models = backend.get_models()
-            self._model_combo.addItems(models)
-            
-            active = self._active_models.get(backend_name)
-            if active in models:
-                self._model_combo.setCurrentText(active)
-            elif models:
-                self._model_combo.setCurrentText(models[0])
-                self._active_models[backend_name] = models[0]
+            if models:
+                self._model_combo.addItems(models)
+                
+                active = self._active_models.get(backend_name)
+                if active in models:
+                    self._model_combo.setCurrentText(active)
+                else:
+                    self._model_combo.setCurrentText(models[0])
+                    self._active_models[backend_name] = models[0]
                 
         self._model_combo.blockSignals(False)
         self._update_backend_status()
@@ -334,7 +335,7 @@ class AiPanel(QWidget):
         model = self._model_combo.currentText()
         backend = self._backends.get(backend_name)
 
-        if backend and backend.is_available():
+        if backend and backend.get_models():
             import os
             check_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "check.svg").replace("\\", "/")
             msg = self.tr("{backend} connected — model: {model}").format(backend=backend_name, model=model)

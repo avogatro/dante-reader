@@ -20,3 +20,4 @@ e-book/e-pub/thy-neighbors-wife.epub
 app/user_prefs.json
 app/dark_theme.py
 *_userdata.json
+app/.cover_cache/*.png

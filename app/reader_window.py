@@ -125,9 +125,6 @@ class ReaderWindow(QMainWindow):
         self._audio_output = None
         self._current_media_id = None
         
-        # Lazy load the media player after the UI draws to avoid FFmpeg startup delays
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(500, self._init_media_player)
         self._current_media_id = None
 
         self.setWindowTitle(self.tr("Dante EPUB Reader"))
@@ -625,6 +622,10 @@ class ReaderWindow(QMainWindow):
     def _open_book(self, path: str) -> None:
         """Load and display an EPUB book asynchronously."""
         try:
+            import time
+            self._load_start_time = time.time()
+            print(f"📖 [TIMER] Starting background book parse for: {path}", flush=True)
+
             self._statusbar.showMessage(self.tr("Loading: {path}...").format(path=path))
             
             use_pymupdf = path.lower().endswith(".pdf")
@@ -651,6 +652,11 @@ class ReaderWindow(QMainWindow):
         QMessageBox.warning(self, self.tr("Load Error"), self.tr("Could not load book:\n{error}").format(error=error_msg))
 
     def _on_book_loaded(self, book_obj, path: str) -> None:
+        import time
+        if hasattr(self, '_load_start_time'):
+            load_time = time.time() - self._load_start_time
+            print(f"✅ [TIMER] Book fully parsed in background in: {load_time:.3f} seconds", flush=True)
+
         self._loading_overlay.hide()
         self._current_book = book_obj
         

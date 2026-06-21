@@ -14,8 +14,12 @@ from app.interfaces import BaseTTSEngine
 
 from .tts_engine import split_sentences, strip_footnote_markers
 
-# Lazy loaded
-OMNIVOICE_AVAILABLE = None
+import socket
+import subprocess
+import sys
+import atexit
+import requests
+import json
 
 
 class OmniVoiceTTSEngine(BaseTTSEngine):
@@ -28,6 +32,8 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         self._model = None
         self._thread: Optional[threading.Thread] = None
         self._player_thread: Optional[threading.Thread] = None
+        self._server_process: Optional[subprocess.Popen] = None
+        self._port = 8123
         
         self._stop_flag = threading.Event()
         self._paused = threading.Event()
@@ -58,11 +64,28 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         )
         self._stream.start()
         
-        # Delay model initialization via the Qt event loop. 
-        # This guarantees PyTorch's heavy import (which locks the GIL) won't start
-        # until *after* the UI has finished drawing and the event loop is idle.
-        from PyQt6.QtCore import QTimer
-        QTimer.singleShot(100, lambda: threading.Thread(target=self._init_model_bg, daemon=True).start())
+        # Launch the TTS Microservice as a completely independent subprocess
+        self._port = self._get_free_port()
+        self._server_process = subprocess.Popen(
+            [sys.executable, "-m", "uvicorn", "app.tts_server.server:app", "--port", str(self._port)],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+        )
+        
+        # Ensure it cleans up
+        proc = self._server_process
+        atexit.register(lambda p=proc: p.terminate() if p else None)
+
+    def _get_free_port(self):
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(('', 0))
+            return s.getsockname()[1]
+            
+    def _cleanup_server(self):
+        if self._server_process:
+            self._server_process.terminate()
+            self._server_process = None
 
     def _audio_callback(self, outdata, frames, time, status):
         """Called by sounddevice on a high-priority hardware thread to fetch audio frames."""
@@ -88,57 +111,7 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
             outdata[have:] = 0.0
             self._audio_buffer = np.zeros((0, 1), dtype='float32')
 
-    def _init_model_bg(self) -> None:
-        try:
-            self._ensure_model()
-        except Exception as e:
-            logging.error(f"Failed to background init OmniVoice model: {e}")
-
-    def _ensure_model(self):
-        global OMNIVOICE_AVAILABLE
-        if self._model is None:
-            if OMNIVOICE_AVAILABLE is False:
-                raise ImportError("omnivoice is not installed.")
-            
-            try:
-                import torch
-                from omnivoice import OmniVoice
-                OMNIVOICE_AVAILABLE = True
-            except ImportError:
-                OMNIVOICE_AVAILABLE = False
-                raise ImportError("omnivoice or torch is not installed.")
-                
-            if torch.cuda.is_available():
-                device = "cuda:0"
-                dtype = torch.bfloat16
-            elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-                device = "mps"
-                dtype = torch.float16
-            else:
-                device = "cpu"
-                dtype = torch.float32
-            
-            logging.info("[OMNIVOICE TTS] Loading OmniVoice model...")
-            self._model = OmniVoice.from_pretrained(
-                self._model_id,
-                device_map=device,
-                dtype=dtype
-            )
-            
-            # Warm up
-            logging.info("[OMNIVOICE TTS] Warming up...")
-            if os.path.exists(self._ref_audio):
-                try:
-                    self._model.generate(
-                        text="warmup", 
-                        ref_audio=self._ref_audio, 
-                        ref_text=self._ref_text
-                    )
-                except Exception:
-                    pass
-            logging.info("[OMNIVOICE TTS] Warmup complete! Engine ready.")
-            
-        return self._model
+    # Removed old background init and model loading
 
     def set_voice(self, voice_id: str) -> None:
         self._speaker = voice_id
@@ -216,8 +189,6 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
 
     def _worker(self, sentences_map: list[tuple[str, str]]) -> None:
         try:
-            model = self._ensure_model()
-            
             for i, (raw_sentence, clean_sentence) in enumerate(sentences_map):
                 if self._stop_flag.is_set():
                     break
@@ -226,23 +197,28 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
                 if self._stop_flag.is_set():
                     break
 
-                logging.info(f"[OMNIVOICE TTS] Generating sentence {i+1}/{len(sentences_map)}: {clean_sentence[:50]!r}...")
+                logging.info(f"[OMNIVOICE TTS] Requesting sentence {i+1}/{len(sentences_map)}: {clean_sentence[:50]!r}...")
                 
                 try:
-                    # OmniVoice generates the whole sentence at once
-                    audio = model.generate(
-                        text=clean_sentence,
-                        ref_audio=self._ref_audio,
-                        ref_text=self._ref_text,
-                        speed=0.9,
-                        denoise=True
+                    payload = {
+                        "text": clean_sentence,
+                        "ref_audio": self._ref_audio,
+                        "ref_text": self._ref_text
+                    }
+                    response = requests.post(
+                        f"http://127.0.0.1:{self._port}/generate", 
+                        json=payload,
+                        timeout=60.0
                     )
                     
-                    if isinstance(audio, list):
-                        audio = np.concatenate(audio)
+                    if response.status_code != 200:
+                        logging.error(f"[OMNIVOICE TTS] Server error: {response.text}")
+                        continue
                         
-                    if len(audio) > 0:
-                        wav_chunk = np.array(audio, dtype='float32')
+                    audio_bytes = response.content
+                    wav_chunk = np.frombuffer(audio_bytes, dtype=np.float32)
+                    
+                    if len(wav_chunk) > 0:
                         if wav_chunk.ndim == 1:
                             wav_chunk = wav_chunk.reshape(-1, 1)
                         

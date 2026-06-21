@@ -20,7 +20,6 @@ DEFAULT_PREFS = {
     "line_height": 1.8,
     "page_width": 750,
     "last_book": None,
-    "book_progress": {},
     "tts_skip_footnotes": True,
     "tts_voice_id": None,
     "tts_rate": 160,
