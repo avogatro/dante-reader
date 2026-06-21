@@ -19,25 +19,15 @@ class FootnoteWidget(QFrame):
         self.reset_style()
 
     def highlight(self):
-        self.setStyleSheet("""
-            FootnoteWidget {
-                background-color: #333311;
-                border: 1px solid #ffcc00;
-                border-radius: 5px;
-                margin-bottom: 5px;
-            }
-        """)
+        self.setProperty("isHighlighted", True)
+        self.style().unpolish(self)
+        self.style().polish(self)
         QTimer.singleShot(1500, self.reset_style)
         
     def reset_style(self):
-        self.setStyleSheet("""
-            FootnoteWidget {
-                background-color: #21262d;
-                border: 1px solid #30363d;
-                border-radius: 5px;
-                margin-bottom: 5px;
-            }
-        """)
+        self.setProperty("isHighlighted", False)
+        self.style().unpolish(self)
+        self.style().polish(self)
 
 class FootnotesPanel(QWidget):
     def __init__(self, parent=None):
@@ -70,7 +60,7 @@ class FootnotesPanel(QWidget):
         
         if not footnotes:
             lbl = QLabel(self.tr("No footnotes available."))
-            lbl.setStyleSheet("color: #8b949e; background: transparent;")
+            lbl.setObjectName("emptyFootnotes")
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self.content_layout.addWidget(lbl)
             return

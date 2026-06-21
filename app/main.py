@@ -15,7 +15,7 @@ register_epub_scheme()
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont
-from app.dark_theme import DARK_QSS
+from app.style_manager import load_qss
 from app.reader_window import ReaderWindow
 
 
@@ -54,7 +54,7 @@ def main():
             app.installTranslator(app._translator)
 
     # Apply global dark theme
-    app.setStyleSheet(DARK_QSS)
+    app.setStyleSheet(load_qss("base.qss"))
 
     # Set app icon
     from app.ui_utils import get_icon

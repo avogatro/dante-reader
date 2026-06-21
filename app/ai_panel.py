@@ -85,7 +85,7 @@ class AiPanel(QWidget):
         f.setPointSize(13)
         f.setWeight(QFont.Weight.Bold)
         header_label.setFont(f)
-        header_label.setStyleSheet("color: #c9a96e; background: transparent;")
+        header_label.setObjectName("headerTitle")
         header_layout.addWidget(header_label)
         header_layout.addStretch()
 
@@ -93,10 +93,7 @@ class AiPanel(QWidget):
         self._btn_toggle_settings = QPushButton()
         self._btn_toggle_settings.setToolTip(self.tr("Toggle Settings & Selection Preview"))
         self._btn_toggle_settings.setFixedSize(28, 28)
-        self._btn_toggle_settings.setStyleSheet("""
-            QPushButton { border: none; background: transparent; border-radius: 4px; }
-            QPushButton:hover { background: #30363d; }
-        """)
+        self._btn_toggle_settings.setObjectName("iconButton")
         self._btn_toggle_settings.setIcon(get_icon("close.svg"))
         header_layout.addWidget(self._btn_toggle_settings)
 
@@ -120,7 +117,7 @@ class AiPanel(QWidget):
         backend_row.setSpacing(6)
 
         backend_label = QLabel(self.tr("Backend:"))
-        backend_label.setStyleSheet("color: #8b949e; font-size: 12px; background: transparent;")
+        backend_label.setObjectName("comboLabel")
         backend_row.addWidget(backend_label)
 
         self._backend_combo = QComboBox()
@@ -139,7 +136,7 @@ class AiPanel(QWidget):
         model_row.setSpacing(6)
 
         model_label = QLabel(self.tr("Model:"))
-        model_label.setStyleSheet("color: #8b949e; font-size: 12px; background: transparent;")
+        model_label.setObjectName("comboLabel")
         model_row.addWidget(model_label)
 
         self._model_combo = QComboBox()
@@ -151,9 +148,7 @@ class AiPanel(QWidget):
 
         # ── Status ──
         self._status_label = QLabel("")
-        self._status_label.setStyleSheet(
-            "color: #8b949e; font-size: 11px; background: transparent;"
-        )
+        self._status_label.setObjectName("statusLabel")
         settings_layout.addWidget(self._status_label)
 
         # ── Selected Text Preview ──
@@ -161,17 +156,7 @@ class AiPanel(QWidget):
         self._selection_label.setReadOnly(True)
         self._selection_label.setMinimumHeight(40)
         self._selection_label.setMaximumHeight(200)
-        self._selection_label.setStyleSheet("""
-            QTextEdit {
-                color: #8b949e;
-                background-color: #1c2333;
-                border: 1px solid #30363d;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 16px;
-                font-family: "Segoe UI", "Microsoft YaHei", "Meiryo", sans-serif;
-            }
-        """)
+        self._selection_label.setObjectName("selectionPreview")
         self._selection_label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._selection_label.customContextMenuRequested.connect(lambda pos: self._show_text_context_menu(pos, self._selection_label))
         settings_layout.addWidget(self._selection_label)
@@ -223,17 +208,7 @@ class AiPanel(QWidget):
         # ── Response Display ──
         self._response = QTextBrowser()
         self._response.setOpenExternalLinks(True)
-        self._response.setStyleSheet("""
-            QTextBrowser {
-                background-color: #161b22;
-                color: #e6e1d8;
-                border: 1px solid #30363d;
-                border-radius: 6px;
-                padding: 12px;
-                font-size: 16px;
-                font-family: "Segoe UI", "Microsoft YaHei", "Meiryo", sans-serif;
-            }
-        """)
+        self._response.setObjectName("responseBrowser")
         icon_path = get_icon_path("ai_model.svg")
         text = self.tr("Select text in the reader, then use the buttons above<br>or ask a free-form question.")
         self._response.setHtml(
@@ -247,7 +222,7 @@ class AiPanel(QWidget):
 
         # ── Clear button ──
         self._btn_clear = QPushButton(self.tr("Clear Chat"))
-        self._btn_clear.setStyleSheet("font-size: 11px;")
+        self._btn_clear.setObjectName("smallButton")
         self._btn_clear.clicked.connect(self._clear_response)
         layout.addWidget(self._btn_clear, alignment=Qt.AlignmentFlag.AlignRight)
 
@@ -378,16 +353,9 @@ class AiPanel(QWidget):
         """Update the currently selected text available for prompts."""
         self._selected_text = text.strip()
         self._selection_label.setPlainText(text)
-        self._selection_label.setStyleSheet("""
-            QTextEdit {
-                color: #e6e1d8;
-                background-color: #1c2333;
-                border: 1px solid #c9a96e;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 14px;
-            }
-        """)
+        self._selection_label.setProperty("hasText", True)
+        self._selection_label.style().unpolish(self._selection_label)
+        self._selection_label.style().polish(self._selection_label)
 
     def set_book_context(self, title: str) -> None:
         """Set the book title context for AI prompts."""
@@ -574,13 +542,5 @@ class AiPanel(QWidget):
         )
         self._selected_text = ""
         self._selection_label.setText(self.tr("No text selected"))
-        self._selection_label.setStyleSheet("""
-            QTextEdit {
-                color: #8b949e;
-                background-color: #1c2333;
-                border: 1px solid #30363d;
-                border-radius: 4px;
-                padding: 8px;
-                font-size: 12px;
-            }
-        """)
+        self._selection_label.setObjectName("selectionLabel")
+        self._selection_label.setProperty("hasText", False)

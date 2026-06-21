@@ -1,0 +1,139 @@
+/* Ribbon Bar Styles */
+
+QFrame#RibbonContainer {
+    background: @bg_darkest;
+    border-bottom: 1px solid @border;
+}
+
+#RibbonWidget {
+    background: @bg_darkest;
+}
+
+#appLogo {
+    border: none; 
+    background: transparent; 
+    padding: 0px 6px; 
+}
+#appLogo::menu-indicator { 
+    image: none; 
+}
+
+#chapterCombo {
+    background-color: transparent;
+    color: @text_primary;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 4px 20px 4px 8px;
+    font-weight: bold;
+    font-size: 13px;
+    min-width: 150px;
+    max-width: 250px;
+}
+#chapterCombo:hover {
+    background-color: @bg_input;
+    border: 1px solid @border;
+}
+#chapterCombo::drop-down {
+    border: none;
+    width: 20px;
+}
+#chapterCombo::down-arrow {
+    image: url(@arrow_down_path);
+    width: 12px;
+    height: 12px;
+}
+
+#searchInput {
+    background-color: @bg_dark;
+    border: 1px solid @border;
+    border-radius: 12px;
+    padding: 4px 12px;
+    color: @text_primary;
+    font-size: 13px;
+}
+#searchInput:focus {
+    border: 1px solid @accent_gold;
+    background-color: @bg_darkest;
+}
+
+#chapterInfo {
+    color: @text_secondary; 
+    font-size: 13px; 
+    padding: 0px 6px; 
+    background: transparent;
+}
+
+#dragArea {
+    color: @text_secondary; 
+    font-weight: bold; 
+    font-size: 13px; 
+    padding: 0px; 
+    background: transparent;
+}
+
+#windowButton {
+    border: none; 
+    background: transparent;
+}
+#windowButton:hover {
+    background: @bg_input; 
+}
+#closeButton {
+    border: none; 
+    background: transparent;
+}
+#closeButton:hover {
+    background: @error_red; 
+}
+
+#panelButton {
+    background-color: transparent; 
+    border-radius: 4px; 
+    padding: 4px; 
+    color: @text_secondary;
+}
+#panelButton:hover {
+    background-color: @bg_input; 
+}
+#panelButton:checked {
+    background-color: @bg_panel; 
+    color: @accent_gold;
+}
+
+#groupWrapper {
+    border-right: 1px solid @border; 
+    border-radius: 0px; 
+    padding-right: 10px; 
+}
+
+#groupTitle {
+    color: @text_primary; 
+    font-size: 11px; 
+    margin-top: 0px; 
+    background: transparent; 
+    border: none;
+}
+
+QTabWidget::pane { 
+    border: none; 
+    border-top: 1px solid @border; 
+    border-bottom: 1px solid @border; 
+    background: @bg_darkest; 
+}
+QTabBar::tab { 
+    background: transparent; 
+    color: @text_secondary; 
+    padding: 6px 16px; 
+    font-size: 13px; 
+    margin-top: 2px; 
+    border-radius: 4px; 
+    margin-right: 2px; 
+}
+QTabBar::tab:selected { 
+    color: @accent_gold; 
+    background: @bg_dark; 
+    font-weight: bold; 
+}
+QTabBar::tab:hover:!selected { 
+    background: @bg_dark; 
+}

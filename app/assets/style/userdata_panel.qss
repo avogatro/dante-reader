@@ -1,0 +1,91 @@
+/* UserData Panel Styles */
+
+QWidget { 
+    background-color: @bg_darkest; 
+    color: @text_primary; 
+}
+
+QTabWidget::pane { 
+    border: 1px solid @border; 
+    border-radius: 4px; 
+    background: @bg_darkest; 
+}
+
+QTabBar::tab { 
+    background: transparent; 
+    color: @text_secondary; 
+    padding: 8px 16px; 
+    border: 1px solid transparent; 
+    border-bottom: none; 
+    border-top-left-radius: 4px; 
+    border-top-right-radius: 4px; 
+}
+
+QTabBar::tab:selected { 
+    background: @bg_dark; 
+    color: @accent_gold; 
+    border: 1px solid @border; 
+    border-bottom: 2px solid @accent_gold; 
+    font-weight: bold; 
+}
+
+QTabBar::tab:hover:!selected { 
+    background: @bg_dark; 
+    border: 1px solid @border; 
+    border-bottom: none; 
+}
+
+QListWidget {
+    background-color: transparent;
+    border: none;
+    outline: none;
+}
+
+QListWidget::item {
+    border: 1px solid transparent;
+    border-bottom: 1px solid @border;
+    padding: 1px;
+}
+
+QListWidget::item:hover {
+    background-color: @bg_input;
+}
+
+QListWidget::item:selected {
+    background-color: transparent;
+    border: 1px solid @selection_border;
+}
+
+#headerTitle {
+    font-size: 16px; 
+    font-weight: bold; 
+    background: transparent;
+}
+
+#chapterLabel {
+    color: @text_secondary; 
+    font-size: 11px; 
+    background: transparent;
+}
+
+#bookmarkLabel {
+    font-weight: bold; 
+    background: transparent;
+}
+
+#bookmarkLabelEmpty {
+    font-style: italic; 
+    color: @text_secondary; 
+    background: transparent;
+}
+
+#quoteLabel {
+    color: @accent_gold; 
+    font-style: italic; 
+    background: transparent;
+}
+
+#noteLabel {
+    font-weight: bold; 
+    background: transparent;
+}

@@ -197,18 +197,18 @@ class LibraryPanel(QWidget):
         f.setPointSize(14)
         f.setWeight(QFont.Weight.Bold)
         header.setFont(f)
-        header.setStyleSheet("color: #c9a96e; background: transparent; padding: 4px;")
+        header.setObjectName("headerTitle")
         
         btn_refresh = QPushButton()
         btn_refresh.setIcon(get_icon("refresh.svg"))
         btn_refresh.setFixedSize(28, 28)
-        btn_refresh.setStyleSheet("QPushButton { border: none; background: transparent; padding: 4px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
+        btn_refresh.setObjectName("iconButton")
         btn_refresh.clicked.connect(self.scan_library)
         
         btn_close = QPushButton()
         btn_close.setIcon(get_icon("close.svg"))
         btn_close.setFixedSize(28, 28)
-        btn_close.setStyleSheet("QPushButton { border: none; background: transparent; padding: 4px; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
+        btn_close.setObjectName("iconButton")
         btn_close.clicked.connect(self.close_requested.emit)
         
         header_layout.addWidget(icon_lbl)
@@ -236,30 +236,17 @@ class LibraryPanel(QWidget):
         self._list.setMovement(QListWidget.Movement.Static)
         self._list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self._list.setWordWrap(True)
-        self._list.setStyleSheet("""
-            QListWidget {
-                background-color: #0d1117;
-                border: none;
-            }
-            QListWidget::item {
-                border-radius: 6px;
-                padding: 4px;
-            }
-            QListWidget::item:selected {
-                background-color: rgba(201, 169, 110, 0.15);
-                border: 1px solid #c9a96e;
-            }
-            QListWidget::item:hover {
-                background-color: rgba(201, 169, 110, 0.08);
-            }
-        """)
+        
         self._list.itemDoubleClicked.connect(self._on_book_clicked)
         layout.addWidget(self._list)
 
         # ── Book Count ──
         self._count_label = QLabel("")
-        self._count_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
+        self._count_label.setObjectName("countLabel")
         layout.addWidget(self._count_label)
+
+        from app.style_manager import load_qss
+        self.setStyleSheet(load_qss("library_panel.qss"))
 
     def scan_library(self) -> None:
         """Scan the e-pub directory and populate the book list asynchronously."""

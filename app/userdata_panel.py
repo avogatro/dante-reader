@@ -40,9 +40,8 @@ class UserDataPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("""
-            QWidget { background-color: #0d1117; color: #c9d1d9; }
-        """)
+        from app.style_manager import load_qss
+        self.setStyleSheet(load_qss("userdata_panel.qss"))
         self._setup_ui()
 
     def _setup_ui(self) -> None:
@@ -56,7 +55,7 @@ class UserDataPanel(QWidget):
         icon_label.setPixmap(get_icon("bookmark.svg").pixmap(20, 20))
 
         title = QLabel(self.tr(" Bookmarks & Notes"))
-        title.setStyleSheet("font-size: 16px; font-weight: bold; background: transparent;")
+        title.setObjectName("headerTitle")
         
         header_layout.addWidget(icon_label)
         header_layout.addWidget(title)
@@ -65,16 +64,11 @@ class UserDataPanel(QWidget):
 
         # Tabs
         self._tabs = QTabWidget()
-        self._tabs.setStyleSheet("""
-            QTabWidget::pane { border: 1px solid #30363d; border-radius: 4px; background: #0d1117; }
-            QTabBar::tab { background: transparent; color: #8b949e; padding: 8px 16px; border: 1px solid transparent; border-bottom: none; border-top-left-radius: 4px; border-top-right-radius: 4px; }
-            QTabBar::tab:selected { background: #161b22; color: #c9a96e; border: 1px solid #30363d; border-bottom: 2px solid #c9a96e; font-weight: bold; }
-            QTabBar::tab:hover:!selected { background: #161b22; border: 1px solid #30363d; border-bottom: none; }
-        """)
+
         
         self._bookmarks_list = WrappingListWidget()
         self._bookmarks_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._bookmarks_list.setStyleSheet(self._list_style())
+
         self._bookmarks_list.itemClicked.connect(self._on_bookmark_clicked)
         self._bookmarks_list.item_needs_widget.connect(self._on_bookmark_needs_widget)
         self._bookmarks_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -82,7 +76,7 @@ class UserDataPanel(QWidget):
         
         self._notes_list = WrappingListWidget()
         self._notes_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        self._notes_list.setStyleSheet(self._list_style())
+
         self._notes_list.itemClicked.connect(self._on_note_clicked)
         self._notes_list.item_needs_widget.connect(self._on_note_needs_widget)
         self._notes_list.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
@@ -101,28 +95,7 @@ class UserDataPanel(QWidget):
         edit_shortcut.setContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         edit_shortcut.activated.connect(self._on_edit_shortcut)
 
-    def _list_style(self) -> str:
-        return """
-            QListWidget {
-                background-color: transparent;
-                
-                border: none;
-                outline: none;
-            }
-            QListWidget::item {
-                border: 1px solid transparent;
-                border-bottom: 1px solid #30363d;
-                padding: 1px;
-                min-height: 40px;
-            }
-            QListWidget::item:hover {
-                background-color: #21262d;
-            }
-            QListWidget::item:selected {
-                background-color: transparent;
-                border: 1px solid #1f6feb;
-            }
-        """
+
 
     def populate_data(self, bookmarks: list, notes: list):
         self._bookmarks_list.clear()
@@ -170,7 +143,7 @@ class UserDataPanel(QWidget):
         
         pct = int(b.get("scroll_percent", 0.0) * 100)
         ch_label = QLabel(self.tr("Chapter {index}").format(index=b.get("chapter", 0) + 1) + f" ({pct}%)")
-        ch_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
+        ch_label.setObjectName("chapterLabel")
         header_layout.addWidget(ch_label)
         header_layout.addStretch()
         content_layout.addLayout(header_layout)
@@ -180,10 +153,10 @@ class UserDataPanel(QWidget):
             text_label = QLabel(label_text)
             text_label.setWordWrap(False)
             text_label.setMinimumWidth(1)
-            text_label.setStyleSheet("font-weight: bold; background: transparent;")
+            text_label.setObjectName("bookmarkLabel")
         else:
             text_label = QLabel(self.tr("Bookmark"))
-            text_label.setStyleSheet("font-style: italic; color: #8b949e; background: transparent;")
+            text_label.setObjectName("bookmarkLabelEmpty")
         content_layout.addWidget(text_label)
         content_layout.addStretch()
         
@@ -206,7 +179,7 @@ class UserDataPanel(QWidget):
         
         pct = int(n.get("scroll_percent", 0.0) * 100)
         ch_label = QLabel(self.tr("Chapter {index}").format(index=n.get("chapter", 0) + 1) + f" ({pct}%)")
-        ch_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
+        ch_label.setObjectName("chapterLabel")
         header_layout.addWidget(ch_label)
         header_layout.addStretch()
         content_layout.addLayout(header_layout)
@@ -221,7 +194,7 @@ class UserDataPanel(QWidget):
             quote_label.setMinimumWidth(1)
         else:
             quote_label = QLabel()
-        quote_label.setStyleSheet("color: #c9a96e; font-style: italic; background: transparent;")
+        quote_label.setObjectName("quoteLabel")
         
         n_text = n.get("note", "")
         if len(n_text) > 600:
@@ -229,7 +202,7 @@ class UserDataPanel(QWidget):
         note_label = QLabel(n_text)
         note_label.setWordWrap(True)
         note_label.setMinimumWidth(1)
-        note_label.setStyleSheet("font-weight: bold; background: transparent;")
+        note_label.setObjectName("noteLabel")
         
         if n.get("selected_text"):
             content_layout.addWidget(quote_label)

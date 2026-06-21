@@ -1,0 +1,60 @@
+/* AI Panel Styles */
+
+QWidget { 
+    background-color: @bg_darkest; 
+    color: @text_primary; 
+}
+
+#headerTitle {
+    color: @accent_gold; 
+    background: transparent;
+}
+
+#iconButton {
+    border: none; 
+    background: transparent; 
+    padding: 4px;
+}
+
+#iconButton:hover {
+    background: @border; 
+    border-radius: 4px;
+}
+
+#comboLabel {
+    color: @text_secondary; 
+    font-size: 12px; 
+    background: transparent;
+}
+
+#statusLabel {
+    color: @text_secondary; 
+    font-size: 11px; 
+    background: transparent;
+}
+
+#selectionLabel {
+    color: @text_secondary;
+    background-color: @bg_panel;
+    border: 1px solid @border;
+    border-radius: 4px;
+    padding: 8px;
+    font-size: 12px;
+}
+
+#selectionLabel[hasText="true"] {
+    color: @text_primary;
+    border: 1px solid @accent_gold;
+    font-size: 14px;
+}
+
+#responseBrowser {
+    background-color: @bg_dark;
+    border: 1px solid @border;
+    border-radius: 6px;
+    padding: 10px;
+}
+
+#smallButton {
+    font-size: 11px;
+}

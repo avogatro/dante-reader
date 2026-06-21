@@ -19,27 +19,7 @@ class RibbonButton(QToolButton):
             self.setIcon(get_icon(icon_name))
         self.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextUnderIcon)
         self.setIconSize(QSize(28, 28))
-        self.setStyleSheet("""
-            QToolButton {
-                border: 1px solid transparent;
-                border-radius: 4px;
-                background: transparent;
-                color: #e6e1d8;
-                padding: 4px;
-                font-size: 11px;
-                min-width: 65px;
-                min-height: 55px;
-            }
-            QToolButton:hover {
-                background: #30363d;
-                border: 1px solid #c9a96e;
-            }
-            QToolButton:pressed, QToolButton:checked {
-                background: #40464d;
-                border: 1px solid #c9a96e;
-            }
-            QToolButton::menu-indicator { image: none; }
-        """)
+        self.setObjectName("panelButton")
 
 # Custom Title Bar implementation with aero snap/dragging handled in reader_window via nativeEvent
 class CustomTitleBar(QWidget):
@@ -63,7 +43,9 @@ class CustomTitleBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(45)
-        self.setStyleSheet("background: #0d1117;")
+        from app.style_manager import load_qss
+        self.setStyleSheet(load_qss("ribbon_bar.qss"))
+        self.setObjectName("RibbonWidget")
         
         layout = QHBoxLayout(self)
         layout.setContentsMargins(8, 0, 0, 0)
@@ -73,7 +55,7 @@ class CustomTitleBar(QWidget):
         self.app_logo = QToolButton()
         self.app_logo.setIcon(get_icon("logo_mountain.svg"))
         self.app_logo.setIconSize(QSize(24, 24))
-        self.app_logo.setStyleSheet("QToolButton { border: none; background: transparent; padding: 0px 6px; } QToolButton::menu-indicator { image: none; }")
+        self.app_logo.setObjectName("appLogo")
         self.app_logo.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
         
         self.app_menu = QMenu(self)
@@ -128,28 +110,20 @@ class CustomTitleBar(QWidget):
         self.chapter_combo = QComboBox()
         self.chapter_combo.setMinimumWidth(450)
         self.chapter_combo.setMaximumWidth(450)
-        arrow_svg = '''data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="%238b949e" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>'''
-        self.chapter_combo.setStyleSheet(f"""
-            QComboBox {{ background: #161b22; color: #e6e1d8; border: 1px solid #30363d; border-radius: 4px; padding: 4px 8px; font-size: 13px;}}
-            QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: top right; width: 24px; border: none; background: transparent; }}
-            QComboBox::down-arrow {{ image: url('{arrow_svg}'); }}
-            QComboBox QAbstractItemView {{ background: #161b22; color: #e6e1d8; border: 1px solid #30363d; selection-background-color: #30363d; }}
-        """)
+        self.chapter_combo.setObjectName("chapterCombo")
         self.chapter_combo.currentIndexChanged.connect(self.chapter_selected.emit)
         
         self.search_input = QLineEdit()
         self.search_input.setPlaceholderText(self.tr("Search book..."))
         self.search_input.setMinimumWidth(450)
         self.search_input.setMaximumWidth(600)
-        self.search_input.setStyleSheet("""
-            QLineEdit { background: #161b22; color: #e6e1d8; border: 1px solid #30363d; border-radius: 12px; padding: 4px 12px; font-size: 13px;}
-        """)
+        self.search_input.setObjectName("searchInput")
         self.search_input.returnPressed.connect(lambda: self.search_requested.emit(self.search_input.text()))
         self.search_input.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.search_input.customContextMenuRequested.connect(lambda pos: self._show_search_context_menu(pos))
         
         self.chapter_info = QLabel("")
-        self.chapter_info.setStyleSheet("color: #8b949e; font-size: 13px; padding: 0px 6px; background: transparent;")
+        self.chapter_info.setObjectName("chapterInfo")
         
         layout.addWidget(self.btn_open)
         layout.addWidget(self.btn_prev)
@@ -162,7 +136,7 @@ class CustomTitleBar(QWidget):
         # Middle spacer (draggable area)
         self.drag_area = QLabel("")
         self.drag_area.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.drag_area.setStyleSheet("color: #8b949e; font-weight: bold; font-size: 13px; padding: 0px; background: transparent;")
+        self.drag_area.setObjectName("dragArea")
         self.drag_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         layout.addWidget(self.drag_area)
         
@@ -192,10 +166,7 @@ class CustomTitleBar(QWidget):
         self.btn_close.clicked.connect(self.close_requested.emit)
         
         # Apply hover effect to close button
-        self.btn_close.setStyleSheet("""
-            QPushButton { border: none; border-radius: 0; background: transparent; }
-            QPushButton:hover { background: #e81123; border-radius: 0;}
-        """)
+        self.btn_close.setObjectName("closeButton")
         
         layout.addWidget(self.btn_min)
         layout.addWidget(self.btn_max)
@@ -254,10 +225,7 @@ class CustomTitleBar(QWidget):
         b.setIcon(get_icon(icon_name))
         b.setToolTip(tooltip)
         b.setFixedSize(36, 36)
-        b.setStyleSheet("""
-            QPushButton { padding: 1px; border: none; border-radius: 4px; background: transparent; }
-            QPushButton:hover { background: #30363d; }
-        """)
+        b.setObjectName("windowButton")
         return b
 
     def set_maximized_icon(self, is_max: bool):
@@ -270,13 +238,8 @@ class RibbonBar(QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(130)
-        self.setStyleSheet("""
-            QTabWidget::pane { border: none; border-top: 1px solid #30363d; border-bottom: 1px solid #30363d; background: #0d1117; }
-            QTabBar::tab { background: transparent; color: #8b949e; padding: 6px 16px; font-size: 13px; margin-top: 2px; border-radius: 4px; margin-right: 2px; }
-            QTabBar::tab:selected { color: #c9a96e; background: #161b22; font-weight: bold; }
-            QTabBar::tab:hover:!selected { background: #161b22; }
-            QWidget { background: #0d1117; }
-        """)
+        from app.style_manager import load_qss
+        self.setStyleSheet(load_qss("ribbon_bar.qss"))
         
         self.view_tab = QWidget()
         self.read_tab = QWidget()
@@ -297,7 +260,7 @@ class RibbonBar(QTabWidget):
         l.setSpacing(0)
         
         content_wrapper = QFrame()
-        content_wrapper.setStyleSheet("QFrame { border-right: 1px solid #30363d; border-radius: 0px; padding-right: 10px; }")
+        content_wrapper.setObjectName("groupWrapper")
         
         content = QHBoxLayout(content_wrapper)
         content.setContentsMargins(0, 0, 0, 2)
@@ -309,7 +272,7 @@ class RibbonBar(QTabWidget):
         
         lbl = QLabel(title)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet("color: #e6e1d8; font-size: 11px; margin-top: 0px; background: transparent; border: none;")
+        lbl.setObjectName("groupTitle")
         l.addWidget(lbl)
         
         return g

@@ -1,0 +1,48 @@
+/* Library Panel Styles */
+
+QWidget { 
+    background-color: @bg_darkest; 
+    color: @text_primary; 
+}
+
+#headerTitle {
+    color: @accent_gold; 
+    background: transparent; 
+    padding: 4px;
+}
+
+#iconButton {
+    border: none; 
+    background: transparent; 
+    padding: 4px;
+}
+
+#iconButton:hover {
+    background: @border; 
+    border-radius: 4px;
+}
+
+QListWidget {
+    background-color: @bg_darkest;
+    border: none;
+}
+
+QListWidget::item {
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QListWidget::item:selected {
+    background-color: @accent_gold_15;
+    border: 1px solid @accent_gold;
+}
+
+QListWidget::item:hover {
+    background-color: @accent_gold_08;
+}
+
+#countLabel {
+    color: @text_secondary; 
+    font-size: 11px; 
+    background: transparent;
+}

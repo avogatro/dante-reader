@@ -80,18 +80,7 @@ class SourceViewerWindow(QMainWindow):
         editor.setPlainText(content)
         editor.setReadOnly(True)
         editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        editor.setStyleSheet("""
-            QPlainTextEdit {
-                background-color: #0d1117;
-                color: #e6e1d8;
-                font-family: "Cascadia Code", "Consolas", "Courier New", monospace;
-                font-size: 13px;
-                border: none;
-                padding: 12px;
-                selection-background-color: #c9a96e;
-                selection-color: #0d1117;
-            }
-        """)
+        editor.setObjectName("editorInput")
         return editor
 
 
@@ -197,7 +186,7 @@ class ReaderPanel(QWidget):
         nav_bar.addWidget(self._btn_next)
 
         self._chapter_label = QLabel("")
-        self._chapter_label.setStyleSheet("color: #8b949e; font-size: 11px; background: transparent;")
+        self._chapter_label.setObjectName("chapterLabel")
         nav_bar.addWidget(self._chapter_label)
 
         self._chapter_combo = QComboBox()
@@ -226,7 +215,7 @@ class ReaderPanel(QWidget):
         nav_widget = QWidget()
         nav_widget.setObjectName("topNavBar")
         nav_widget.setLayout(nav_bar)
-        nav_widget.setStyleSheet("#topNavBar { border-bottom: 1px solid #30363d; }")
+        nav_widget.setObjectName("topNavBar")
         nav_widget.hide()
         layout.addWidget(nav_widget)
 
@@ -258,7 +247,7 @@ class ReaderPanel(QWidget):
         self._table_controls_widget = QWidget()
         self._table_controls_widget.setObjectName("tableControls")
         self._table_controls_widget.setLayout(self._table_nav_bar)
-        self._table_controls_widget.setStyleSheet("#tableControls { border-bottom: 1px solid #30363d; }")
+        self._table_controls_widget.setObjectName("tableControls")
         self._table_controls_widget.hide()
         layout.addWidget(self._table_controls_widget)
 
@@ -271,7 +260,7 @@ class ReaderPanel(QWidget):
         self._web = QWebEngineView(self)
         self._page = QWebEnginePage(self._profile, self._web)
         self._web.setPage(self._page)
-        self._web.setStyleSheet("background-color: #0d1117;")
+        self._web.setObjectName("webEngine")
         self._web.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._web.customContextMenuRequested.connect(self._show_context_menu)
         self._page.navigationRequested.connect(self._on_navigation_requested)
@@ -609,7 +598,7 @@ class ReaderPanel(QWidget):
             
             for key, val in tracks.items():
                 chk = QCheckBox(val.get("label", key))
-                chk.setStyleSheet("background: transparent; padding: 1px 1px;")
+                chk.setObjectName("tableCheck")
                 # Initially uncheck pronunciation tracks and the AI translation track
                 chk.setChecked(val.get("type") != "pronunciation" and key not in ("ai_translation", "translation"))
                 chk.stateChanged.connect(self._update_table_layout)
@@ -625,13 +614,13 @@ class ReaderPanel(QWidget):
             self._table_tts_combo.blockSignals(False)
         else:
             self._chk_col_original = QCheckBox(self.tr("Original"))
-            self._chk_col_original.setStyleSheet("background: transparent; padding: 1px 1px;")
+            self._chk_col_original.setObjectName("tableCheck")
             self._chk_col_original.setChecked(True)
             self._chk_col_original.stateChanged.connect(self._update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_original)
             
             self._chk_col_translation = QCheckBox(self.tr("AI Translation"))
-            self._chk_col_translation.setStyleSheet("background: transparent; padding: 1px 1px;")
+            self._chk_col_translation.setObjectName("tableCheck")
             self._chk_col_translation.setChecked(False)
             self._chk_col_translation.stateChanged.connect(self._update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_translation)

@@ -11,7 +11,8 @@ class SearchPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setStyleSheet("background-color: #0d1117; color: #c9d1d9;")
+        from app.style_manager import load_qss
+        self.setStyleSheet(load_qss("search_panel.qss"))
         self._setup_ui()
         self._current_query = ""
 
@@ -29,20 +30,12 @@ class SearchPanel(QWidget):
         header_layout.addWidget(header_icon)
         
         self._title_label = QLabel(self.tr(" Search Results"))
-        self._title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #e6e1d8; background: transparent;")
+        self._title_label.setObjectName("headerTitle")
         header_layout.addWidget(self._title_label)
         header_layout.addStretch()
 
         self._clear_btn = QPushButton(self.tr("Clear"))
-        self._clear_btn.setStyleSheet("""
-            QPushButton {
-                background: transparent;
-                color: #58a6ff;
-                border: none;
-                padding: 1px;
-            }
-            QPushButton:hover { text-decoration: underline; }
-        """)
+        self._clear_btn.setObjectName("clearButton")
         self._clear_btn.clicked.connect(self.clear_results)
         self._clear_btn.hide()
         header_layout.addWidget(self._clear_btn)
@@ -50,31 +43,12 @@ class SearchPanel(QWidget):
         layout.addLayout(header_layout)
 
         self._status_label = QLabel(self.tr("Type a query in the top bar to search."))
-        self._status_label.setStyleSheet("color: #8b949e; font-style: italic; background: transparent;")
+        self._status_label.setObjectName("statusLabel")
         self._status_label.setWordWrap(True)
         layout.addWidget(self._status_label)
 
         self._list_widget = QListWidget()
-        self._list_widget.setStyleSheet("""
-            QListWidget {
-                background-color: #161b22;
-                border: 1px solid #30363d;
-                border-radius: 6px;
-                padding: 5px;
-            }
-            QListWidget::item {
-                border: 1px solid transparent;
-                border-bottom: 1px solid #30363d;
-                padding: 9px;
-            }
-            QListWidget::item:hover {
-                background-color: #21262d;
-            }
-            QListWidget::item:selected {
-                background-color: transparent;
-                border: 1px solid #1f6feb;
-            }
-        """)
+        
         self._list_widget.setWordWrap(True)
         self._list_widget.itemDoubleClicked.connect(self._on_item_double_clicked)
         layout.addWidget(self._list_widget)

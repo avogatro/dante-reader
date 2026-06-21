@@ -1,0 +1,51 @@
+/* Search Panel Styles */
+
+QWidget { 
+    background-color: @bg_darkest; 
+    color: @text_primary; 
+}
+
+#headerTitle {
+    font-size: 16px; 
+    font-weight: bold; 
+    color: @text_primary; 
+    background: transparent;
+}
+
+#clearButton {
+    background: transparent;
+    color: @accent_blue;
+    border: none;
+    padding: 1px;
+}
+
+#clearButton:hover {
+    text-decoration: underline;
+}
+
+#statusLabel {
+    color: @text_secondary; 
+    font-style: italic; 
+    background: transparent;
+}
+
+QListWidget {
+    background-color: transparent;
+    border: none;
+    outline: none;
+}
+
+QListWidget::item {
+    border: 1px solid transparent;
+    border-bottom: 1px solid @border;
+    padding: 9px;
+}
+
+QListWidget::item:hover {
+    background-color: @bg_input;
+}
+
+QListWidget::item:selected {
+    background-color: transparent;
+    border: 1px solid @selection_border;
+}

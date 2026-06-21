@@ -53,7 +53,7 @@ class FootnotePanel(QWidget):
         f.setPointSize(13)
         f.setWeight(QFont.Weight.Bold)
         header_label.setFont(f)
-        header_label.setStyleSheet("color: #c9a96e; background: transparent;")
+        header_label.setObjectName("footnoteHeader")
         header_layout.addWidget(header_label)
 
         header_layout.addStretch()
@@ -68,18 +68,7 @@ class FootnotePanel(QWidget):
         self._btn_close = QPushButton("")
         self._btn_close.setIcon(get_icon("close.svg"))
         self._btn_close.setFixedSize(28, 28)
-        self._btn_close.setStyleSheet("""
-            QPushButton {
-                border: none;
-                color: #8b949e;
-                font-size: 16px;
-                border-radius: 4px;
-            }
-            QPushButton:hover {
-                background-color: #30363d;
-                color: #e6e1d8;
-            }
-        """)
+        self._btn_close.setObjectName("iconButton")
         self._btn_close.clicked.connect(self.close_requested.emit)
         header_layout.addWidget(self._btn_close)
 
@@ -87,26 +76,13 @@ class FootnotePanel(QWidget):
 
         # ── Footnote ID Label ──
         self._id_label = QLabel("")
-        self._id_label.setStyleSheet(
-            "color: #8b949e; font-size: 11px; background: transparent; padding: 2px 0;"
-        )
+        self._id_label.setObjectName("footnoteId")
         layout.addWidget(self._id_label)
 
         # ── Content Browser ──
         self._browser = QTextBrowser()
         self._browser.setOpenExternalLinks(False)
-        self._browser.setStyleSheet("""
-            QTextBrowser {
-                background-color: #161b22;
-                color: #e6e1d8;
-                border: 1px solid #30363d;
-                border-radius: 6px;
-                padding: 12px;
-                font-family: Georgia, "Times New Roman", serif;
-                font-size: 15px;
-                line-height: 1.6;
-            }
-        """)
+        self._browser.setObjectName("footnoteBrowser")
         layout.addWidget(self._browser, 1)
 
         # ── Placeholder state ──

@@ -190,7 +190,7 @@ class ReaderWindow(QMainWindow):
         close_btn = QPushButton()
         close_btn.setIcon(get_icon("close.svg"))
         close_btn.setFixedSize(28, 28)
-        close_btn.setStyleSheet("QPushButton { border: none; background: transparent; } QPushButton:hover { background: #30363d; border-radius: 4px; }")
+        close_btn.setObjectName("iconButton")
         close_btn.clicked.connect(self._toggle_sidebar)
         
         corner_layout.addWidget(close_btn)
@@ -232,13 +232,14 @@ class ReaderWindow(QMainWindow):
         main_widget = QWidget()
         main_widget.setLayout(main_layout)
         main_widget.setObjectName("MainWrapper")
-        main_widget.setStyleSheet("#MainWrapper { border: 1px solid #30363d; }")
+        main_widget.setObjectName("MainWrapper")
+        main_widget.setProperty("isActive", False)
         self.setCentralWidget(main_widget)
 
         # ── Loading Overlay ──
         self._loading_overlay = QLabel(self.tr("Loading Book..."), self)
         self._loading_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self._loading_overlay.setStyleSheet("background-color: rgba(0, 0, 0, 180); color: white; font-size: 24px; border-radius: 10px; padding: 20px;")
+        self._loading_overlay.setObjectName("loadingOverlay")
         self._loading_overlay.hide()
 
     def resizeEvent(self, event):
@@ -306,9 +307,11 @@ class ReaderWindow(QMainWindow):
             wrapper = self.centralWidget()
             if wrapper and wrapper.objectName() == "MainWrapper":
                 if self.isActiveWindow():
-                    wrapper.setStyleSheet("#MainWrapper { border: 1px solid #5b626a; }")
+                    wrapper.setProperty("isActive", True)
                 else:
-                    wrapper.setStyleSheet("#MainWrapper { border: 1px solid #30363d; }")
+                    wrapper.setProperty("isActive", False)
+                wrapper.style().unpolish(wrapper)
+                wrapper.style().polish(wrapper)
 
     def _wire_ribbon_signals(self):
         tb = self._title_bar
