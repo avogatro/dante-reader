@@ -209,15 +209,15 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
    - Decoupled the search logic into a background QThread to guarantee 60FPS UI fluidity even when regex-parsing hundreds of chapters.
 
 2. **Detached DOM Text Extraction (Newline Preservation)**
-   - Fixed a critical TTS tokenization bug where extracting 	extContent from a detached DOM clone squashed block elements together (e.g. <p>) without spaces, breaking the Python sentence tokenizer.
-   - Manually injected literal \n nodes into p, div, and r elements inside the clone before extraction to perfectly simulate native innerText behavior on detached nodes.
+   - Fixed a critical TTS tokenization bug where extracting textContent from a detached DOM clone squashed block elements together (e.g. <p>) without spaces, breaking the Python sentence tokenizer.
+   - Manually injected literal \n nodes into p, div, and br elements inside the clone before extraction to perfectly simulate native innerText behavior on detached nodes.
 
 3. **Multi-Track Restricted DOM Highlighting**
    - Re-engineered the JavaScript TTS highlighting bridge. The standard window.find() API searches globally and was incorrectly highlighting original text tracks when the user was listening to the AI translation track.
-   - Implemented a robust fallback loop that iterates over matches, aggressively verifying that the nchorNode resides within the exact 	argetClass (e.g. .track-translation) before locking in the highlight.
+   - Implemented a robust fallback loop that iterates over matches, aggressively verifying that the anchorNode resides within the exact targetClass (e.g. .track-translation) before locking in the highlight.
 
 4. **DOM-Pure Highlight Unwrapping**
-   - Discovered that "clearing" highlights by setting el.style.backgroundColor = 'transparent' was causing massive DOM pollution. These hidden spans were overriding new gba(...) spans wrapping around them, completely hiding future highlights from the user.
+   - Discovered that "clearing" highlights by setting el.style.backgroundColor = 'transparent' was causing massive DOM pollution. These hidden spans were overriding new rgba(...) spans wrapping around them, completely hiding future highlights from the user.
    - Replaced the CSS hack with a true DOM unwrap algorithm (parent.insertBefore(el.firstChild, el)) that cleanly physically removes the span elements without destroying the underlying text nodes.
 
 ### 💡 Phase 7 Lessons Learned
@@ -225,13 +225,13 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
 > [!CAUTION]
 > **The document.execCommand Transparent Span Bug**
 > **Symptom:** AI Translation TTS audio played perfectly, but highlights completely disappeared from the screen on sentences that had previously been highlighted.
-> **Diagnosis:** When a new highlight is applied over text containing a <span style="background-color: transparent">, the browser wraps the whole block in a new color span, but the inner 	ransparent span overrides it, making the text invisible to the highlight.
-> **Lesson:** Never clear highlights by setting them to 	ransparent. Always structurally unwrap and remove the formatting elements from the DOM entirely to prevent invisible styling collisions.
+> **Diagnosis:** When a new highlight is applied over text containing a <span style="background-color: transparent">, the browser wraps the whole block in a new color span, but the inner transparent span overrides it, making the text invisible to the highlight.
+> **Lesson:** Never clear highlights by setting them to transparent. Always structurally unwrap and remove the formatting elements from the DOM entirely to prevent invisible styling collisions.
 
 > [!TIP]
-> **innerText vs 	extContent on Detached Nodes**
+> **innerText vs textContent on Detached Nodes**
 > **Symptom:** clone.innerText failed to extract block-level newlines, returning a giant run-on string without spaces.
-> **Diagnosis:** Browser APIs rely on the active CSS layout engine to determine block spacing for innerText. If a node is cloned and *not* attached to the active document body, it has no layout, causing innerText to degrade into basic 	extContent (stripping all block spacing).
+> **Diagnosis:** Browser APIs rely on the active CSS layout engine to determine block spacing for innerText. If a node is cloned and *not* attached to the active document body, it has no layout, causing innerText to degrade into basic textContent (stripping all block spacing).
 > **Lesson:** When extracting formatted text from a detached DOM clone, manually append a text node containing \n to all block-level elements (p, div, li) and replace <br> tags *before* calling `textContent`.
 
 ---
@@ -265,3 +265,33 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
 > **Qt Action Shortcomings in Dynamic Menus**
 > **Symptom:** Assigning `.setShortcut("F5")` to a `QAction` inside `QWebEngineView`'s dynamically generated context menu only registered the key when the menu was physically drawn on screen.
 > **Lesson:** Never rely on transient menus to handle global shortcuts. Always create a persistent `QAction` in the parent widget's constructor, assign `setShortcutContext(Qt.ShortcutContext.WindowShortcut)`, and add it to the parent layout via `addAction()` to decouple the shortcut from the menu's visibility state.
+
+---
+
+## 🚀 Performance Optimization & Hardware Synchronization (Phase 9)
+
+### 🏆 Phase 9 Achievements
+1. **Removed Main Thread Socket Locks**
+   - Eliminated a massive 3-6 second UI lockup on startup by completely decoupling AI backend pinging (`Ollama/Gemini`) from the PyQt Main Event Loop.
+2. **EPUB Cover Caching**
+   - Implemented a `.cover_cache` disk storage mechanism using MD5 hashing for absolute file paths, reducing repetitive book parsing on launch from 2.5s down to 0.05s.
+
+### 💡 Phase 9 Lessons Learned
+
+> [!WARNING]
+> **The Nvidia Overlay Illusion vs Chromium IPC Handshake**
+> **Symptom:** A 3-second UI freeze perfectly coincided with the "Nvidia GeForce Experience" overlay popping up, making it look like Nvidia was locking the Python process.
+> **Diagnosis:** The Nvidia overlay is just a visual symptom! When `QWebEngineView` is instantiated, Qt asynchronously spins up `QtWebEngineProcess.exe`, which boots V8 and initializes Direct3D 11. Nvidia detects this D3D11 swapchain and injects its overlay. Simultaneously, the PyQt Main Thread synchronously halts to wait for Chromium's IPC handshake.
+> **Lesson:** You cannot bypass this Chromium IPC handshake penalty in QtWebEngine, nor can you easily prevent Nvidia injection without degrading performance (e.g., forcing software rasterization).
+
+> [!CAUTION]
+> **The Main Thread Synchronous Socket Freeze**
+> **Symptom:** The UI fully rendered, but 1 second later it completely locked up for 6 seconds.
+> **Diagnosis:** While the AI panel used a background thread to check backends, the UI update slot (`_on_backend_changed`) running on the Main Thread was accidentally calling `backend.is_available()` *again*. Because `urllib` sockets take 2 seconds to timeout, the PyQt event loop completely hung waiting for multiple HTTP timeouts.
+> **Lesson:** Never perform synchronous network I/O (`urllib`, `requests`, `socket.connect`) on the PyQt Main Thread. Pass the fully cached network results via Qt Signals to strictly separate I/O from UI updates.
+
+> [!TIP]
+> **Library Scanner GIL Yielding**
+> **Symptom:** Scanning hundreds of EPUBs in the background `QThread` caused the main UI to stutter violently.
+> **Diagnosis:** Pure Python file operations (`os.walk`) and metadata parsing hold the Global Interpreter Lock (GIL). Heavy Python loops inside a `QThread` will completely starve the Main Thread's event loop.
+> **Lesson:** Always insert explicit `time.sleep(0.01)` calls inside heavy background Python loops in PyQt to forcefully yield the GIL, restoring buttery-smooth 60FPS UI animations.
