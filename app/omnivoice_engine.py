@@ -21,7 +21,7 @@ import sys
 import atexit
 import requests
 import json
-
+import traceback
 
 class OmniVoiceTTSEngine(BaseTTSEngine):
     """
@@ -356,7 +356,7 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
                     pass
 
         except Exception as e:
-            import traceback
+            
             traceback.print_exc()
             self.error.emit(f"OmniVoice TTS Error: {str(e)}")
 

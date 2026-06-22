@@ -8,6 +8,10 @@ import os
 import io
 import warnings
 
+import time
+import cProfile
+import pstats
+
 # Suppress harmless NLTK WordNet parsing warnings for Chinese offsets
 warnings.filterwarnings("ignore", module="nltk.corpus.reader.wordnet")
 
@@ -19,14 +23,13 @@ register_epub_scheme()
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QFont
+from PyQt6.QtCore import QTranslator, QTimer
 from app.style_manager import load_qss
 from app.reader_window import ReaderWindow
+from app.config import load_prefs
+from app.ui_utils import get_icon
 
 
-import time
-import cProfile
-import pstats
-import io
 
 _START_TIME = time.time()
 _DEBUG_PROFILE = "--debug-profile" in sys.argv
@@ -38,7 +41,6 @@ else:
     _PROFILER = None
 
 def main():
-    from app.config import load_prefs
     prefs = load_prefs()
     ui_scale = prefs.get("ui_scale", 1.0)
     if ui_scale != 1.0:
@@ -49,7 +51,6 @@ def main():
     app.setApplicationName("DanteEpubReader")
 
     # Load application language translations
-    from PyQt6.QtCore import QTranslator
     app_lang = prefs.get("app_lang", "en")
     app._translator = QTranslator() # Keep reference
     translations_path = os.path.join(os.path.dirname(__file__), "..", "translations", f"{app_lang}.qm")
@@ -61,7 +62,6 @@ def main():
     app.setStyleSheet(load_qss("base.qss"))
 
     # Set app icon
-    from app.ui_utils import get_icon
     app.setWindowIcon(get_icon("logo_mountain"))
 
     # Set default application font
@@ -79,7 +79,6 @@ def main():
     window.show()
 
     # Schedule a callback on the first idle loop (when UI is done drawing)
-    from PyQt6.QtCore import QTimer
     def print_startup_time():
         if _PROFILER:
             _PROFILER.disable()

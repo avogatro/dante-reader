@@ -4,6 +4,10 @@ Shows cover art thumbnails with titles in a scrollable grid layout.
 """
 
 import os
+import re
+import hashlib
+import time
+
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QThread
 from PyQt6.QtGui import QPixmap, QImage, QIcon, QFont, QColor, QPainter, QPen
 from PyQt6.QtWidgets import (
@@ -17,13 +21,14 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QPushButton,
     QMessageBox,
-    
 )
 
 from .epub_loader import EpubBook
 from .pdf_book import PdfBook
 from .dante_book import DanteBook
-from .config import get_epubs_dir
+from .config import get_epubs_dir, PROJECT_ROOT
+from app.ui_utils import get_icon
+from app.style_manager import load_qss
 
 
 def _generate_placeholder_cover(title: str, width: int = 140, height: int = 200) -> QImage:
@@ -89,16 +94,11 @@ class LibraryScannerWorker(QThread):
             full_path = os.path.join(epubs_dir, filename)
             basename = os.path.basename(filename)
             title = os.path.splitext(basename)[0]
-            import re
             title_clean = re.sub(r"\s*\[\d+\]\s*$", "", title)
             discovered.append((title_clean, full_path))
             
         self.books_discovered.emit(discovered)
 
-        import hashlib
-        import time
-        from .config import PROJECT_ROOT
-        
         cache_dir = os.path.join(PROJECT_ROOT, "app", ".cover_cache")
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir, exist_ok=True)
@@ -107,7 +107,6 @@ class LibraryScannerWorker(QThread):
             full_path = os.path.join(epubs_dir, filename)
             basename = os.path.basename(filename)
             title = os.path.splitext(basename)[0]
-            import re
             title_clean = re.sub(r"\s*\[\d+\]\s*$", "", title)
 
             cover_image = None
@@ -189,7 +188,6 @@ class LibraryPanel(QWidget):
         header_layout = QHBoxLayout()
         
         icon_lbl = QLabel()
-        from app.ui_utils import get_icon
         icon_lbl.setPixmap(get_icon("library.svg").pixmap(24, 24))
         
         header = QLabel(self.tr(" Library"))
@@ -245,7 +243,6 @@ class LibraryPanel(QWidget):
         self._count_label.setObjectName("countLabel")
         layout.addWidget(self._count_label)
 
-        from app.style_manager import load_qss
         self.setStyleSheet(load_qss("library_panel.qss"))
 
     def scan_library(self) -> None:
@@ -268,7 +265,6 @@ class LibraryPanel(QWidget):
         
         # Create one shared placeholder for all items
         placeholder = _generate_placeholder_cover("Loading...")
-        from PyQt6.QtGui import QPixmap
         placeholder_pixmap = QPixmap.fromImage(placeholder)
         
         for title_clean, full_path in discovered:

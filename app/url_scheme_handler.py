@@ -3,6 +3,9 @@ Custom URL scheme handler for serving EPUB internal assets.
 Registers an 'epub://' scheme so QWebEngineView can load CSS, images,
 and fonts from the in-memory EPUB content without extracting to disk.
 """
+import os
+import mimetypes
+import urllib.parse
 
 from PyQt6.QtCore import QByteArray, QBuffer, QIODevice, QUrl
 from PyQt6.QtWebEngineCore import (
@@ -59,8 +62,6 @@ class EpubSchemeHandler(QWebEngineUrlSchemeHandler):
 
         # Serve PDF.js viewer assets
         if host == "pdfjs":
-            import os
-            import mimetypes
             rel_path = path
             base_dir = os.path.join(os.path.dirname(__file__), "assets", "pdfjs")
             full_path = os.path.normpath(os.path.join(base_dir, rel_path))
@@ -92,8 +93,6 @@ class EpubSchemeHandler(QWebEngineUrlSchemeHandler):
 
         # Serve user's PDF files
         if host == "pdf":
-            import os
-            import urllib.parse
             pdf_path = urllib.parse.unquote(path) # Decode in case of %20 spaces
             
             if not os.path.exists(pdf_path):

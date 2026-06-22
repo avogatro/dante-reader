@@ -44,9 +44,6 @@ class DanteChapter:
                 rows.append('</td>')
                 
             rows.append('</tr>')
-
-        import json
-        import os
         
         media_registry = {
             "audio": getattr(self._book_ref, 'audio_clips', {}),

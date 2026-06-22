@@ -6,6 +6,8 @@ from PyQt6.QtWidgets import (
     QTabWidget, QComboBox, QLineEdit, QSizePolicy, QToolButton, QFrame, QMenu
 )
 from app.ui_utils import get_icon
+from app.style_manager import load_qss
+from app.config import load_prefs
 
 class RibbonButton(QToolButton):
     def __init__(self, text, icon_name, tooltip=None, parent=None):
@@ -43,7 +45,6 @@ class CustomTitleBar(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(45)
-        from app.style_manager import load_qss
         self.setStyleSheet(load_qss("ribbon_bar.qss"))
         self.setObjectName("RibbonWidget")
         
@@ -61,7 +62,6 @@ class CustomTitleBar(QWidget):
         self.app_menu = QMenu(self)
         self.scale_menu = self.app_menu.addMenu(self.tr("UI Scale (Requires Restart)"))
         
-        from app.config import load_prefs
         prefs = load_prefs()
         current_scale = float(prefs.get("ui_scale", 1.0))
         
@@ -238,7 +238,6 @@ class RibbonBar(QTabWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setFixedHeight(130)
-        from app.style_manager import load_qss
         self.setStyleSheet(load_qss("ribbon_bar.qss"))
         
         self.view_tab = QWidget()

@@ -2,6 +2,7 @@ import os
 import base64
 import pymupdf4llm
 import markdown
+import re
 
 try:
     import fitz  # PyMuPDF
@@ -82,8 +83,7 @@ class PdfBook:
         try:
             # pymupdf4llm extracts markdown preserving columns, tables, and headers perfectly
             md_text = pymupdf4llm.to_markdown(self._doc, pages=[index])
-            
-            import re
+
             # Strip standalone page numbers (e.g. at the bottom/top of the page)
             md_text = re.sub(r'(?m)^\s*\d+\s*$', '', md_text)
             # Strip standard bracketed footnotes [123] and their text until the next paragraph

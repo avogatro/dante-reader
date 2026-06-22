@@ -23,6 +23,8 @@ from PyQt6.QtWidgets import (
 )
 
 from app.llm_backends import OllamaBackend, GeminiBackend
+from app.config import load_prefs
+import os
 
 
 class AiPanel(QWidget):
@@ -374,7 +376,6 @@ class AiPanel(QWidget):
     def _explain(self) -> None:
         if not self._selected_text:
             return
-        from app.config import load_prefs
         target_lang = load_prefs().get("translation_lang", "Modern English")
         prompt = (
             f"Explain the following passage from {self._book_context} in plain, {target_lang}. "
@@ -387,7 +388,6 @@ class AiPanel(QWidget):
     def _translate(self) -> None:
         if not self._selected_text:
             return
-        from app.config import load_prefs
         target_lang = load_prefs().get("translation_lang", "Modern English")
         prompt = (
             f"Translate the following text into {target_lang}. "
@@ -400,7 +400,6 @@ class AiPanel(QWidget):
     def _research(self) -> None:
         if not self._selected_text:
             return
-        from app.config import load_prefs
         target_lang = load_prefs().get("translation_lang", "Modern English")
         prompt = (
             f"You are a research assistant for studying {self._book_context}. "
@@ -421,7 +420,6 @@ class AiPanel(QWidget):
 
         self._input.clear()
         
-        from app.config import load_prefs
         target_lang = load_prefs().get("translation_lang", "Modern English")
         
         if self._selected_text:
@@ -532,7 +530,6 @@ class AiPanel(QWidget):
 
     def _clear_response(self) -> None:
         """Clear the response area."""
-        import os
         icon_path = os.path.join(os.path.dirname(__file__), "assets", "icons", "ai_model.svg").replace("\\", "/")
         text = self.tr("Select text in the reader, then use the buttons above<br>or ask a free-form question.")
         self._response.setHtml(

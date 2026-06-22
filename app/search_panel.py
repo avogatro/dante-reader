@@ -1,9 +1,11 @@
+import re
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QListWidget, QListWidgetItem,
     QLabel, QPushButton, QHBoxLayout
 )
 from PyQt6.QtCore import pyqtSignal, Qt
 from app.ui_utils import get_icon
+from app.style_manager import load_qss
 
 class SearchPanel(QWidget):
     result_selected = pyqtSignal(int, str)  # chapter_idx, query
@@ -11,7 +13,7 @@ class SearchPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from app.style_manager import load_qss
+        
         self.setStyleSheet(load_qss("search_panel.qss"))
         self._setup_ui()
         self._current_query = ""
@@ -20,7 +22,6 @@ class SearchPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
-
         # Header
         header_layout = QHBoxLayout()
         
@@ -90,7 +91,7 @@ class SearchPanel(QWidget):
             # so we'll just set text and rely on rich text if possible.
             # QListWidget items don't support HTML naturally, but we can use a custom widget 
             # if we want. For simplicity, let's strip HTML from snippet for the list item text
-            import re
+
             plain_snippet = re.sub(r'<[^>]+>', '', snippet)
             item.setText(f"{title}\n{plain_snippet}")
             

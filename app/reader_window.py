@@ -28,6 +28,7 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QToolTip,
 )
+from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from .library_panel import LibraryPanel
 from .reader_panel import ReaderPanel
@@ -1029,14 +1030,13 @@ class ReaderWindow(QMainWindow):
     def _init_media_player(self) -> None:
         if self._media_player is not None:
             return
-        from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
+        
         self._media_player = QMediaPlayer(self)
         self._audio_output = QAudioOutput(self)
         self._media_player.setAudioOutput(self._audio_output)
         self._media_player.playbackStateChanged.connect(self._on_media_playback_state_changed)
 
     def _on_media_playback_state_changed(self, state):
-        from PyQt6.QtMultimedia import QMediaPlayer
         if state == QMediaPlayer.PlaybackState.StoppedState:
             if self._current_media_id:
                 if hasattr(self, '_reader') and self._reader and hasattr(self._reader, '_page'):
@@ -1046,8 +1046,7 @@ class ReaderWindow(QMainWindow):
     def _play_media_audio(self, media_id: str) -> None:
         """Play or toggle an embedded audio clip via QMediaPlayer."""
         self._init_media_player()
-        from PyQt6.QtCore import QUrl
-        from PyQt6.QtMultimedia import QMediaPlayer
+        
         
         # Toggle if it's the same media and currently playing
         if self._current_media_id == media_id and self._media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:

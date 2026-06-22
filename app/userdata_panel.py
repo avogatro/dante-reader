@@ -1,8 +1,9 @@
 import os
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QTabWidget)
-from PyQt6.QtCore import pyqtSignal, Qt, QSize
-from PyQt6.QtGui import QShortcut, QKeySequence
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QTabWidget, QMenu)
 from app.ui_utils import get_icon
+from app.style_manager import load_qss
+from PyQt6.QtCore import pyqtSignal, Qt, QSize, QTimer
+from PyQt6.QtGui import QShortcut, QKeySequence
 
 class WrappingListWidget(QListWidget):
     item_needs_widget = pyqtSignal(QListWidgetItem)
@@ -40,7 +41,6 @@ class UserDataPanel(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from app.style_manager import load_qss
         self.setStyleSheet(load_qss("userdata_panel.qss"))
         self._setup_ui()
 
@@ -115,7 +115,6 @@ class UserDataPanel(QWidget):
             item.setSizeHint(QSize(0, 145))
             self._notes_list.addItem(item)
             
-        from PyQt6.QtCore import QTimer
         QTimer.singleShot(0, self._bookmarks_list._on_scroll)
         QTimer.singleShot(0, self._notes_list._on_scroll)
 
@@ -230,7 +229,7 @@ class UserDataPanel(QWidget):
         b = item.data(Qt.ItemDataRole.UserRole)
         if not b: return
         
-        from PyQt6.QtWidgets import QMenu
+
         menu = QMenu(self)
         edit_action = menu.addAction(get_icon("pencil.svg"), self.tr("Edit"))
         del_action = menu.addAction(get_icon("delete.svg"), self.tr("Delete"))
@@ -246,8 +245,7 @@ class UserDataPanel(QWidget):
         if not item: return
         n = item.data(Qt.ItemDataRole.UserRole)
         if not n: return
-        
-        from PyQt6.QtWidgets import QMenu
+
         menu = QMenu(self)
         edit_action = menu.addAction(get_icon("pencil.svg"), self.tr("Edit"))
         del_action = menu.addAction(get_icon("delete.svg"), self.tr("Delete"))
