@@ -308,12 +308,12 @@ class RibbonBar(QTabWidget):
         self.theme_btn.setCheckable(True)
         self.pdf_mode_btn = RibbonButton(self.tr("PDF Extract"), "pdf_mode", self.tr("Toggle PDF Text Extraction Mode"))
         self.pdf_mode_btn.setCheckable(True)
-        self.epub_md_btn = RibbonButton(self.tr("ePub Extract"), "epub_mode", self.tr("Toggle EPUB Markdown Mode"))
-        self.epub_md_btn.setCheckable(True)
+        self.epub_pymupdf_btn = RibbonButton(self.tr("ePub Extract"), "epub_mode", self.tr("Toggle EPUB Extract Mode"))
+        self.epub_pymupdf_btn.setCheckable(True)
         
         mode_g.content_layout.addWidget(self.theme_btn)
         mode_g.content_layout.addWidget(self.pdf_mode_btn)
-        mode_g.content_layout.addWidget(self.epub_md_btn)
+        mode_g.content_layout.addWidget(self.epub_pymupdf_btn)
         layout.addWidget(mode_g)
         
         layout.addStretch()

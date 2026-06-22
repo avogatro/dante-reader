@@ -294,8 +294,8 @@ class ReaderWindow(BorderlessWindow):
         rb.pdf_mode_btn.setChecked(self._prefs.get("pdf_reading_mode", False))
         rb.pdf_mode_btn.toggled.connect(self._toggle_pdf_reading_mode)
         
-        rb.epub_md_btn.setChecked(self._prefs.get("epub_markdown_mode", False))
-        rb.epub_md_btn.toggled.connect(self._toggle_epub_md_mode)
+        rb.epub_pymupdf_btn.setChecked(self._prefs.get("epub_pymupdf_mode", False))
+        rb.epub_pymupdf_btn.toggled.connect(self._toggle_epub_pymupdf_mode)
         
         def create_exclusive_menu(btn, options, current_val, callback):
             menu = QMenu(self)
@@ -574,7 +574,7 @@ class ReaderWindow(BorderlessWindow):
             self._statusbar.showMessage(self.tr("Loading: {path}...").format(path=path))
             
             use_pymupdf = path.lower().endswith(".pdf")
-            if path.lower().endswith(".epub") and self._prefs.get("epub_markdown_mode", False):
+            if path.lower().endswith(".epub") and self._prefs.get("epub_pymupdf_mode", False):
                 use_pymupdf = True
                 
             is_dante = path.lower().endswith((".dante", ".zip"))
@@ -892,17 +892,10 @@ class ReaderWindow(BorderlessWindow):
         if hasattr(self._reader, "set_dark_mode"):
             self._reader.set_dark_mode(checked)
 
-    def _toggle_epub_md_mode(self, checked: bool) -> None:
-        self._prefs["epub_markdown_mode"] = checked
+    def _toggle_epub_pymupdf_mode(self, checked: bool) -> None:
+        self._prefs["epub_pymupdf_mode"] = checked
         save_prefs(self._prefs)
-        if hasattr(self._reader, "set_epub_markdown_mode"):
-            self._reader.set_epub_markdown_mode(checked)
-        
-        # If toggled on and we have an EPUB open, extract its markdown immediately
-        if checked and self._reader._book and not getattr(self._reader._book, 'is_dante', False) and not getattr(self._reader._book, 'is_pdf', False):
-            self._statusbar.showMessage(f"Extracting Markdown from EPUB: {self._reader._book.path}...")
-            self._ai.load_epub_markdown(self._reader._book.path)
-            
+
         if self._current_book and self._current_book.path.lower().endswith(".epub"):
             # Reload the book to apply the new engine
             self._open_book(self._current_book.path)
