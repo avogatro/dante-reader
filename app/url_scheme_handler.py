@@ -62,54 +62,62 @@ class EpubSchemeHandler(QWebEngineUrlSchemeHandler):
 
         # Serve PDF.js viewer assets
         if host == "pdfjs":
-            rel_path = path
-            base_dir = os.path.join(os.path.dirname(__file__), "assets", "pdfjs")
-            full_path = os.path.normpath(os.path.join(base_dir, rel_path))
-            
-            # Prevent directory traversal
-            if not full_path.startswith(os.path.normpath(base_dir)) or not os.path.exists(full_path):
-                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
-                return
-                
-            with open(full_path, "rb") as f:
-                data = f.read()
-                
-            if full_path.endswith(".mjs") or full_path.endswith(".js"):
-                mime_type = "application/javascript"
-            elif full_path.endswith(".wasm"):
-                mime_type = "application/wasm"
-            elif full_path.endswith(".css"):
-                mime_type = "text/css"
-            else:
-                mime_type, _ = mimetypes.guess_type(full_path)
-                if mime_type is None:
-                    mime_type = "application/octet-stream"
-                    
-            buf = QBuffer(parent=self)
-            buf.setData(QByteArray(data))
-            buf.open(QIODevice.OpenModeFlag.ReadOnly)
-            job.reply(mime_type.encode("utf-8"), buf)
+            self._serve_pdfjs_asset(job, path)
             return
 
         # Serve user's PDF files
         if host == "pdf":
-            pdf_path = urllib.parse.unquote(path) # Decode in case of %20 spaces
-            
-            if not os.path.exists(pdf_path):
-                print(f"[scheme] PDF not found: {pdf_path}")
-                job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
-                return
-                
-            with open(pdf_path, "rb") as f:
-                data = f.read()
-                
-            buf = QBuffer(parent=self)
-            buf.setData(QByteArray(data))
-            buf.open(QIODevice.OpenModeFlag.ReadOnly)
-            job.reply(b"application/pdf", buf)
+            self._serve_pdf_file(job, path)
             return
 
         # EPUB Content
+        self._serve_epub_content(job, path)
+
+    def _serve_pdfjs_asset(self, job: QWebEngineUrlRequestJob, rel_path: str) -> None:
+        base_dir = os.path.join(os.path.dirname(__file__), "assets", "pdfjs")
+        full_path = os.path.normpath(os.path.join(base_dir, rel_path))
+        
+        # Prevent directory traversal
+        if not full_path.startswith(os.path.normpath(base_dir)) or not os.path.exists(full_path):
+            job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+            return
+            
+        with open(full_path, "rb") as f:
+            data = f.read()
+            
+        if full_path.endswith(".mjs") or full_path.endswith(".js"):
+            mime_type = "application/javascript"
+        elif full_path.endswith(".wasm"):
+            mime_type = "application/wasm"
+        elif full_path.endswith(".css"):
+            mime_type = "text/css"
+        else:
+            mime_type, _ = mimetypes.guess_type(full_path)
+            if mime_type is None:
+                mime_type = "application/octet-stream"
+                
+        buf = QBuffer(parent=self)
+        buf.setData(QByteArray(data))
+        buf.open(QIODevice.OpenModeFlag.ReadOnly)
+        job.reply(mime_type.encode("utf-8"), buf)
+
+    def _serve_pdf_file(self, job: QWebEngineUrlRequestJob, path: str) -> None:
+        pdf_path = urllib.parse.unquote(path) # Decode in case of %20 spaces
+        
+        if not os.path.exists(pdf_path):
+            print(f"[scheme] PDF not found: {pdf_path}")
+            job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
+            return
+            
+        with open(pdf_path, "rb") as f:
+            data = f.read()
+            
+        buf = QBuffer(parent=self)
+        buf.setData(QByteArray(data))
+        buf.open(QIODevice.OpenModeFlag.ReadOnly)
+        job.reply(b"application/pdf", buf)
+
+    def _serve_epub_content(self, job: QWebEngineUrlRequestJob, path: str) -> None:
         if self._book is None or getattr(self._book, 'is_pdf', False):
             job.fail(QWebEngineUrlRequestJob.Error.UrlNotFound)
             return
@@ -145,3 +153,4 @@ class EpubSchemeHandler(QWebEngineUrlSchemeHandler):
         buf.setData(QByteArray(data))
         buf.open(QIODevice.OpenModeFlag.ReadOnly)
         job.reply(mime_type.encode("utf-8"), buf)
+

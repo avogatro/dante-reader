@@ -42,45 +42,42 @@ class DictionaryEngine:
         
         # If exact match fails, use lightweight lemmatization heuristics
         if not synsets:
-            candidates = []
-            
-            # 1. Use Simplemma for highly accurate multilingual lemmatization (verbs, plurals, adjectives)
-            if simplemma:
-                try:
-                    # simplemma expects 2-letter ISO codes (e.g. 'it', 'en', 'fr')
-                    iso_lang = source_lang[:2].lower() if source_lang else 'it'
-                    lemma = simplemma.lemmatize(word, lang=iso_lang)
-                    if lemma and lemma != word:
-                        candidates.append(lemma)
-                except Exception as e:
-                    print(f"[dictionary] simplemma error: {e}")
-            
-            # 2. Poetic apocope (dropped last vowel, e.g. cammin -> cammino, dir -> dire)
-            # This is specific to poetry/Dante where standard NLP models fail because it's not a real word.
-            candidates.append(word + 'o')
-            candidates.append(word + 'e')
-            candidates.append(word + 'a')
-            candidates.append(word + 'i')
-            
-            # Try candidates
-            for cand in candidates:
-                if len(cand) < 2: 
-                    continue
-                s = get_synsets(cand)
-                if s:
-                    synsets = s
-                    word = cand  # Update the word to the base form so the tooltip header matches
-                    break
+            synsets, word = self._fallback_lookup(word, source_lang, get_synsets)
 
         if not synsets:
             return None
             
+        return self._format_results(synsets, word, omw_target)
+
+    def _fallback_lookup(self, word: str, source_lang: str, get_synsets_fn) -> tuple[list, str]:
+        candidates = []
+        
+        # 1. Use Simplemma for highly accurate multilingual lemmatization (verbs, plurals, adjectives)
+        if simplemma:
+            try:
+                # simplemma expects 2-letter ISO codes (e.g. 'it', 'en', 'fr')
+                iso_lang = source_lang[:2].lower() if source_lang else 'it'
+                lemma = simplemma.lemmatize(word, lang=iso_lang)
+                if lemma and lemma != word:
+                    candidates.append(lemma)
+            except Exception as e:
+                print(f"[dictionary] simplemma error: {e}")
+        
+        # 2. Poetic apocope (dropped last vowel, e.g. cammin -> cammino, dir -> dire)
+        candidates.extend([word + 'o', word + 'e', word + 'a', word + 'i'])
+        
+        for cand in candidates:
+            if len(cand) < 2: 
+                continue
+            s = get_synsets_fn(cand)
+            if s:
+                return s, cand
+                
+        return [], word
+
+    def _format_results(self, synsets: list, word: str, omw_target: str) -> str | None:
         pos_map = {
-            'n': 'Noun',
-            'v': 'Verb',
-            'a': 'Adjective',
-            'r': 'Adverb',
-            's': 'Adjective'
+            'n': 'Noun', 'v': 'Verb', 'a': 'Adjective', 'r': 'Adverb', 's': 'Adjective'
         }
         
         results = []
@@ -100,7 +97,6 @@ class DictionaryEngine:
                 except Exception:
                     pass
             
-            # Some synsets might share the exact same English definition but different nuance.
             results.append(f"<b>[{pos}]</b>{translations} {definition}")
             
         # Deduplicate and limit to top 5 definitions to keep the tooltip lightweight
@@ -116,7 +112,6 @@ class DictionaryEngine:
         if not unique_results:
             return None
             
-        # Wrap in a small container for QToolTip formatting
         header = f"<div style='margin-bottom: 4px; font-size: 14px;'><b>{word}</b></div>"
         body = "<br>".join(unique_results)
         

@@ -79,14 +79,7 @@ class LibraryScannerWorker(QThread):
             self.finished_scan.emit(-1)
             return
 
-        book_files = []
-        for root, _, files in os.walk(epubs_dir):
-            for f in files:
-                if f.lower().endswith((".epub", ".pdf", ".dante", ".zip")):
-                    rel_path = os.path.relpath(os.path.join(root, f), epubs_dir)
-                    book_files.append(rel_path)
-                    
-        book_files.sort(key=str.lower)
+        book_files = self._find_book_files(epubs_dir)
         
         discovered = []
         for filename in book_files:
@@ -102,6 +95,22 @@ class LibraryScannerWorker(QThread):
         if not os.path.exists(cache_dir):
             os.makedirs(cache_dir, exist_ok=True)
 
+        self._process_covers(epubs_dir, book_files, cache_dir)
+            
+        self.finished_scan.emit(len(book_files))
+
+    def _find_book_files(self, epubs_dir: str) -> list[str]:
+        book_files = []
+        for root, _, files in os.walk(epubs_dir):
+            for f in files:
+                if f.lower().endswith((".epub", ".pdf", ".dante", ".zip")):
+                    rel_path = os.path.relpath(os.path.join(root, f), epubs_dir)
+                    book_files.append(rel_path)
+                    
+        book_files.sort(key=str.lower)
+        return book_files
+
+    def _process_covers(self, epubs_dir: str, book_files: list[str], cache_dir: str) -> None:
         for filename in book_files:
             full_path = os.path.join(epubs_dir, filename)
             basename = os.path.basename(filename)
@@ -158,8 +167,6 @@ class LibraryScannerWorker(QThread):
             # CRITICAL: Force the thread to yield the Python GIL so the main UI thread 
             # can process events (like clicking tabs) without freezing.
             time.sleep(0.01)
-            
-        self.finished_scan.emit(len(book_files))
 
 
 class LibraryPanel(QWidget):

@@ -466,27 +466,7 @@ class ReaderPanel(QWidget):
         
         # Intercept our custom actions
         if scheme == "epub" and url.host() == "action":
-            request.reject()
-            if path == "next-chapter":
-                QTimer.singleShot(0, self._next_chapter)
-            elif path == "media":
-                query = QUrlQuery(url.query())
-                media_type = query.queryItemValue("type")
-                media_id = query.queryItemValue("id")
-                
-                if media_type == "audio":
-                    QTimer.singleShot(0, lambda: self._handle_audio_click(media_id))
-                elif media_type == "video":
-                    QTimer.singleShot(0, lambda: self._handle_video_click(media_id))
-                elif media_type == "foot":
-                    QTimer.singleShot(0, lambda: self._handle_footnote_click(media_id))
-            elif path == "dict":
-                query = QUrlQuery(url.query())
-                word = query.queryItemValue("word")
-                if word:
-                    # QUrlQuery returns URL-encoded string. We decode it.
-                    word = urllib.parse.unquote(word)
-                    QTimer.singleShot(0, lambda: self.dictionary_lookup_requested.emit(word))
+            self._handle_action_url(request, path, url)
             return
 
         try:
@@ -518,31 +498,57 @@ class ReaderPanel(QWidget):
 
             # ── Case 3: epub:// link ──
             if scheme == "epub":
-                # Check if this link points to the CURRENT chapter file
-                is_same_page = False
-                if self._book and fragment:
-                    current_ch = self._book.get_chapter(self._current_chapter)
-                    if current_ch:
-                        current_fname = current_ch.file_name
-                        current_basename = current_fname.rsplit("/", 1)[-1]
-                        link_basename = path.rsplit("/", 1)[-1]
-                        if link_basename == current_basename or path == current_fname:
-                            is_same_page = True
-
-                if is_same_page:
-                    print(f"[reader]   -> Same-page anchor: #{fragment}", flush=True)
-                    # DO NOT REJECT. Let Chromium handle natively to track history.
-                    return
-                else:
-                    # REJECT cross-file navigation so we can inject styles
-                    request.reject()
-                    p, f = path, fragment or ""
-                    print(f"[reader]   -> Cross-file nav: {p!r} #{f!r}", flush=True)
-                    QTimer.singleShot(0, lambda: self._on_chapter_link_clicked(p, f))
+                self._handle_epub_link(request, path, fragment)
                 return
 
         except Exception as e:
             print(f"[reader] Error in navigation handler: {e!r}", flush=True)
+
+    def _handle_action_url(self, request: QWebEngineNavigationRequest, path: str, url: QUrl) -> None:
+        request.reject()
+        if path == "next-chapter":
+            QTimer.singleShot(0, self._next_chapter)
+        elif path == "media":
+            query = QUrlQuery(url.query())
+            media_type = query.queryItemValue("type")
+            media_id = query.queryItemValue("id")
+            
+            if media_type == "audio":
+                QTimer.singleShot(0, lambda: self._handle_audio_click(media_id))
+            elif media_type == "video":
+                QTimer.singleShot(0, lambda: self._handle_video_click(media_id))
+            elif media_type == "foot":
+                QTimer.singleShot(0, lambda: self._handle_footnote_click(media_id))
+        elif path == "dict":
+            query = QUrlQuery(url.query())
+            word = query.queryItemValue("word")
+            if word:
+                # QUrlQuery returns URL-encoded string. We decode it.
+                word = urllib.parse.unquote(word)
+                QTimer.singleShot(0, lambda: self.dictionary_lookup_requested.emit(word))
+
+    def _handle_epub_link(self, request: QWebEngineNavigationRequest, path: str, fragment: str) -> None:
+        # Check if this link points to the CURRENT chapter file
+        is_same_page = False
+        if self._book and fragment:
+            current_ch = self._book.get_chapter(self._current_chapter)
+            if current_ch:
+                current_fname = current_ch.file_name
+                current_basename = current_fname.rsplit("/", 1)[-1]
+                link_basename = path.rsplit("/", 1)[-1]
+                if link_basename == current_basename or path == current_fname:
+                    is_same_page = True
+
+        if is_same_page:
+            print(f"[reader]   -> Same-page anchor: #{fragment}", flush=True)
+            # DO NOT REJECT. Let Chromium handle natively to track history.
+            return
+        else:
+            # REJECT cross-file navigation so we can inject styles
+            request.reject()
+            p, f = path, fragment or ""
+            print(f"[reader]   -> Cross-file nav: {p!r} #{f!r}", flush=True)
+            QTimer.singleShot(0, lambda: self._on_chapter_link_clicked(p, f))
 
     def _handle_audio_click(self, media_id: str) -> None:
         self.audio_play_requested.emit(media_id)
