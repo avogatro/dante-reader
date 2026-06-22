@@ -21,15 +21,6 @@ a:hover {{
     color: {THEME['accent_hover']} !important;
 }}
 
-
-
-/* Fix for EPUB covers using SVG with height 100% but no parent height */
-svg[height="100%"] {{
-    height: 95vh !important;
-    width: auto !important;
-    object-fit: contain !important;
-}}
-
 /* Footnote anchor styling */
 a.fnanchor, a.pginternal {{
     color: {THEME['accent_gold']} !important;

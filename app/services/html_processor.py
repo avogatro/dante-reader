@@ -28,10 +28,6 @@ class EpubHtmlProcessor:
         
         html = EpubHtmlProcessor._inject_next_button(html)
         
-        # Fix SVG attribute casing AFTER all BeautifulSoup manipulations have finished!
-        html = re.sub(r'\bviewbox\s*=', 'viewBox=', html, flags=re.IGNORECASE)
-        html = re.sub(r'\bpreserveaspectratio\s*=', 'preserveAspectRatio=', html, flags=re.IGNORECASE)
-        
         return html
 
     @staticmethod
@@ -117,6 +113,9 @@ class EpubHtmlProcessor:
         style = f"""
         <style id='reader-prefs-css'>
             /*<![CDATA[*/
+            html, body {{
+                min-height: 100vh !important;
+            }}
             body {{
                 font-family: "{settings['font_family']}", Georgia, "Times New Roman", serif !important;
                 font-size: {settings['font_size']}px !important;
@@ -131,6 +130,11 @@ class EpubHtmlProcessor:
                 object-fit: contain !important;
                 display: block;
                 margin: 0 auto;
+            }}
+            svg[height="100%"] {{
+                height: 95vh !important;
+                width: auto !important;
+                object-fit: contain !important;
             }}
             p, div, span, li, td, th {{
                 font-size: inherit !important;

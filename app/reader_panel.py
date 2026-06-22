@@ -397,6 +397,10 @@ class ReaderPanel(QWidget):
             trans_dict = self._translation_manager.get_chapter(self._current_chapter)
             html = inject_translated_text(html, trans_dict)
                 
+        # Fix SVG attribute casing AFTER all BeautifulSoup manipulations have finished!
+        html = re.sub(r'\bviewbox\s*=', 'viewBox=', html, flags=re.IGNORECASE)
+        html = re.sub(r'\bpreserveaspectratio\s*=', 'preserveAspectRatio=', html, flags=re.IGNORECASE)
+        
         self._last_rendered_html = xml_decl + html
         return self._last_rendered_html
 
