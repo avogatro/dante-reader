@@ -24,7 +24,6 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QLabel,
     QCheckBox,
-    QMessageBox,
 )
 from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWebEngineWidgets import QWebEngineView
@@ -39,9 +38,11 @@ from .pdf_book import PdfBook
 from app.ui_utils import get_icon_path
 from app.config import get_max_width_px
 from app.services.html_processor import EpubHtmlProcessor
-from app.translation_parser import extract_translation_blocks, inject_translation_ids, inject_translated_text
+from app.translation_parser import inject_translation_ids, inject_translated_text
 from app.reader_context_menu import ReaderContextMenu
 from app.source_viewer import SourceViewerWindow
+from .table_layout_manager import TableLayoutManager
+from .translation_helper import TranslationHelper
 
 
 class ReaderPanel(QWidget):
@@ -95,6 +96,8 @@ class ReaderPanel(QWidget):
         self._last_rendered_html = ""   # Store for "View Source"
         self._last_original_html = ""   # Pre-injection EPUB HTML
         self._source_windows = []       # Keep references so they don't get GC'd
+        self._table_layout_manager = TableLayoutManager(self)
+        self._translation_helper = TranslationHelper(self)
         self._scheme_handler.set_html_processor(self._process_html)
         self._setup_ui()
         
@@ -136,7 +139,7 @@ class ReaderPanel(QWidget):
         
         self._btn_translate_page = QPushButton(self.tr("AI: Translate Page"))
   
-        self._btn_translate_page.clicked.connect(self._translate_visible_page)
+        self._btn_translate_page.clicked.connect(self._translation_helper.translate_visible_page)
         self._table_nav_bar.addWidget(self._btn_translate_page)
         
         self._table_nav_bar.addStretch()
@@ -188,72 +191,11 @@ class ReaderPanel(QWidget):
     def set_tts_target(self, target: str):
         self._tts_target = target
 
-    def _get_table_layout_css(self) -> str:
-        css_lines = []
-        
-        if getattr(self._book, 'is_dante', False):
-            active_count = sum(1 for chk in self._dynamic_checkboxes.values() if chk.isChecked())
-            width_pct = (100.0 / active_count) if active_count > 0 else 100.0
-            
-            for key, chk in self._dynamic_checkboxes.items():
-                is_checked = chk.isChecked()
-                css_lines.append(f".track-{key} {{ display: {'table-cell' if is_checked else 'none'} !important; width: {width_pct if is_checked else 0}% !important; padding: {'0 15px' if is_checked else '0'} !important; }}")
-                
-
-        else:
-            show_orig = self._dynamic_checkboxes.get("original", type('obj', (object,), {'isChecked': lambda: True})).isChecked()
-            show_trans = self._dynamic_checkboxes.get("translation", type('obj', (object,), {'isChecked': lambda: False})).isChecked()
-            css_lines.append(f".track-original {{ display: {'block' if show_orig else 'none'} !important; flex: 1; padding: {'0 15px' if show_orig else '0'} !important; }}")
-            css_lines.append(f".track-translation {{ display: {'block' if show_trans else 'none'} !important; flex: 1; padding: {'0 15px' if show_trans else '0'} !important; }}")
-        
-        
-        return " ".join(css_lines)
-
-    def _update_table_layout(self):
-        css_str = self._get_table_layout_css()
-        safe_css = json.dumps(css_str)
-        js = f"if (typeof window.updateTableLayoutCss === 'function') {{ window.updateTableLayoutCss({safe_css}); }}"
-        self._page.runJavaScript(js)
-
-    def _translate_visible_page(self):
-        # Determine which checkbox to toggle based on book type
-        trans_chk = self._dynamic_checkboxes.get("ai_translation" if getattr(self._book, 'is_dante', False) else "translation")
-        if trans_chk and not trans_chk.isChecked():
-            trans_chk.setChecked(True)
-            
-        js = "if (typeof window.translationHelper !== 'undefined') { window.translationHelper.getVisibleTransIds(); } else { []; }"
-        self._page.runJavaScript(js, self._on_visible_ids_received)
-
-    def _on_visible_ids_received(self, visible_ids):
-        if not visible_ids:
-            return
-            
-        all_blocks = extract_translation_blocks(self._last_rendered_html)
-        needed_blocks = [b for b in all_blocks if b["id"] in visible_ids]
-        
-        if needed_blocks:
-            if hasattr(self, "_btn_translate_page"):
-                self._btn_translate_page.setText(self.tr("⏳ Translating..."))
-                self._btn_translate_page.setEnabled(False)
-            self.translation_requested.emit(needed_blocks)
-
     def _on_chapter_translated(self, index: int):
-        if hasattr(self, "_btn_translate_page"):
-            self._btn_translate_page.setText(self.tr("AI: Translate Page"))
-            self._btn_translate_page.setEnabled(True)
-        if index == self._current_chapter and self._translation_manager:
-            translations = self._translation_manager.get_chapter(index)
-            is_dante = getattr(self._book, 'is_dante', False)
-            safe_trans = json.dumps(translations)
-            safe_is_dante = str(is_dante).lower()
-            js = f"if (typeof window.translationHelper !== 'undefined') {{ window.translationHelper.injectTranslations({safe_trans}, {safe_is_dante}); }}"
-            self._page.runJavaScript(js)
+        self._translation_helper.on_chapter_translated(index)
 
     def _on_translation_error(self, index: int, error_msg: str):
-        if hasattr(self, "_btn_translate_page"):
-            self._btn_translate_page.setText(self.tr("AI: Translate Page"))
-            self._btn_translate_page.setEnabled(True)
-        QMessageBox.critical(self, self.tr("Translation Error"), self.tr("Failed to translate chapter {index}:\n\n{error}").format(index=index, error=error_msg))
+        self._translation_helper.on_translation_error(index, error_msg)
 
     def _on_page_load_finished(self, ok: bool) -> None:
         # If it's a PDF, apply the dark mode preference instantly upon load
@@ -261,7 +203,7 @@ class ReaderPanel(QWidget):
             self.set_pdf_dark_mode(self._pdf_dark_mode)
             
         if self._book and not getattr(self._book, 'is_pdf', False):
-            self._update_table_layout()
+            self._table_layout_manager.update_table_layout()
 
         if ok and getattr(self, '_first_load', False):
             # Only force this aggressive repaint once when the book is initially loaded (cover page)
@@ -318,7 +260,7 @@ class ReaderPanel(QWidget):
                 chk.setObjectName("tableCheck")
                 # Initially uncheck pronunciation tracks and the AI translation track
                 chk.setChecked(val.get("type") != "pronunciation" and key not in ("ai_translation", "translation"))
-                chk.stateChanged.connect(self._update_table_layout)
+                chk.stateChanged.connect(self._table_layout_manager.update_table_layout)
                 self._track_toggles_layout.addWidget(chk)
                 self._dynamic_checkboxes[key] = chk
             
@@ -333,13 +275,13 @@ class ReaderPanel(QWidget):
             self._chk_col_original = QCheckBox(self.tr("Original"))
             self._chk_col_original.setObjectName("tableCheck")
             self._chk_col_original.setChecked(True)
-            self._chk_col_original.stateChanged.connect(self._update_table_layout)
+            self._chk_col_original.stateChanged.connect(self._table_layout_manager.update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_original)
             
             self._chk_col_translation = QCheckBox(self.tr("AI Translation"))
             self._chk_col_translation.setObjectName("tableCheck")
             self._chk_col_translation.setChecked(False)
-            self._chk_col_translation.stateChanged.connect(self._update_table_layout)
+            self._chk_col_translation.stateChanged.connect(self._table_layout_manager.update_table_layout)
             self._track_toggles_layout.addWidget(self._chk_col_translation)
             
             self._dynamic_checkboxes["original"] = self._chk_col_original
@@ -352,7 +294,7 @@ class ReaderPanel(QWidget):
             self._table_tts_combo.blockSignals(False)
                 
         self._table_controls_widget.show()
-        self._update_table_layout()
+        self._table_layout_manager.update_table_layout()
 
         self._scheme_handler.set_book(book)
 
@@ -395,7 +337,7 @@ class ReaderPanel(QWidget):
             self._web.setHtml(html, QUrl("epub://content/"))
             
             # Apply initial column visibility
-            QTimer.singleShot(100, self._update_table_layout)
+            QTimer.singleShot(100, self._table_layout_manager.update_table_layout)
         else:
             # For EPUBs, get_chapter returns a Chapter object with a file_name.
             # We navigate to it via the scheme handler so relative assets load.
@@ -434,7 +376,7 @@ class ReaderPanel(QWidget):
             html = EpubHtmlProcessor.process(html, file_path, settings)
             
             # Inject the active table layout directly into the HTML so it takes effect instantly
-            layout_css = f"<style id='table-column-toggles'>{self._get_table_layout_css()}</style>"
+            layout_css = f"<style id='table-column-toggles'>{self._table_layout_manager.get_table_layout_css()}</style>"
             html = EpubHtmlProcessor._inject_head_content(html, layout_css)
         except Exception as e:
             traceback.print_exc()

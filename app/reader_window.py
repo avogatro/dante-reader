@@ -6,12 +6,10 @@ Includes menus for View, TTS, and AI controls.
 
 import os
 import time
-import tempfile
 
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve, QEvent, QUrl
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve, QEvent
 from PyQt6.QtGui import QAction, QCursor, QActionGroup, QKeySequence
 from PyQt6.QtWidgets import (
-    QMainWindow,
     QSplitter,
     QWidget,
     QVBoxLayout,
@@ -28,7 +26,6 @@ from PyQt6.QtWidgets import (
     QFileDialog,
     QToolTip,
 )
-from PyQt6.QtMultimedia import QMediaPlayer, QAudioOutput
 
 from .library_panel import LibraryPanel
 from .reader_panel import ReaderPanel
@@ -46,6 +43,8 @@ from .user_data import UserDataManager
 from .search_worker import SearchWorker
 from app.translation_manager import TranslationManager
 from app.ui_utils import get_icon
+from .borderless_window import BorderlessWindow
+from .playback_controller import PlaybackController
 
 class BookLoaderThread(QThread):
     finished_loading = pyqtSignal(object, str)  # book_obj, path
@@ -125,7 +124,7 @@ class NoteDialog(QWidget):
         
     def textValue(self):
         return self.text_edit.toPlainText()
-class ReaderWindow(QMainWindow):
+class ReaderWindow(BorderlessWindow):
     """Main application window for the EPUB Reader."""
 
     def __init__(self):
@@ -133,11 +132,7 @@ class ReaderWindow(QMainWindow):
         self._prefs = load_prefs()
         self._current_book: EpubBook | None = None
         self._tts = OmniVoiceTTSEngine(self)
-        self._media_player = None
-        self._audio_output = None
-        self._current_media_id = None
-        
-        self._current_media_id = None
+        self._playback_controller = PlaybackController(self)
 
         self.setWindowTitle(self.tr("Dante EPUB Reader"))
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowSystemMenuHint | Qt.WindowType.WindowMinMaxButtonsHint)
@@ -252,60 +247,6 @@ class ReaderWindow(QMainWindow):
             self._loading_overlay.resize(self.width(), self.height())
 
 
-    def nativeEvent(self, eventType, message):
-        from ctypes.wintypes import MSG
-        try:
-            msg = MSG.from_address(int(message))
-            if msg.message == 0x0083: # WM_NCCALCSIZE
-                if msg.wParam:
-                    return True, 0
-            elif msg.message == 0x0084: # WM_NCHITTEST
-                pos = self.mapFromGlobal(QCursor.pos())
-                margin = 8
-                
-                left = pos.x() < margin
-                right = pos.x() > self.width() - margin
-                top = pos.y() < margin
-                bottom = pos.y() > self.height() - margin
-                
-                if left and top:
-                    return True, 13
-                if right and top:
-                    return True, 14
-                if left and bottom:
-                    return True, 16
-                if right and bottom:
-                    return True, 17
-                if left:
-                    return True, 10
-                if right:
-                    return True, 11
-                if top:
-                    return True, 12
-                if bottom:
-                    return True, 15
-        except Exception:
-            pass
-        return False, 0
-
-    def showEvent(self, event):
-        super().showEvent(event)
-        import ctypes
-        try:
-            hwnd = int(self.winId())
-            GWL_STYLE = -16
-            WS_THICKFRAME = 0x00040000
-            WS_CAPTION = 0x00C00000
-            WS_MAXIMIZEBOX = 0x00010000
-            WS_MINIMIZEBOX = 0x00020000
-            user32 = ctypes.windll.user32
-            style = user32.GetWindowLongW(hwnd, GWL_STYLE)
-            if not (style & WS_CAPTION):
-                user32.SetWindowLongW(hwnd, GWL_STYLE, style | WS_THICKFRAME | WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX)
-                user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0027) # SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER
-        except Exception:
-            pass
-
     def changeEvent(self, event):
         super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange:
@@ -403,8 +344,8 @@ class ReaderWindow(QMainWindow):
         )
         
         # Ribbon - Reading
-        rb.play_btn.clicked.connect(self._tts_play)
-        rb.stop_btn.clicked.connect(self._tts_stop)
+        rb.play_btn.clicked.connect(self._playback_controller.tts_play)
+        rb.stop_btn.clicked.connect(self._playback_controller.tts_stop)
         
         create_exclusive_menu(
             rb.voice_btn,
@@ -464,11 +405,11 @@ class ReaderWindow(QMainWindow):
         self._reader.ai_translate_requested.connect(self._on_ai_translate_requested)
         
         # Connect Context Menu TTS actions
-        self._reader.play_chapter_requested.connect(self._tts_play)
-        self._reader.stop_tts_requested.connect(self._tts_stop)
+        self._reader.play_chapter_requested.connect(self._playback_controller.tts_play)
+        self._reader.stop_tts_requested.connect(self._playback_controller.tts_stop)
         self._reader.prev_chapter_requested.connect(lambda: self._reader._prev_chapter())
         self._reader.next_chapter_requested.connect(lambda: self._reader._next_chapter())
-        self._reader.audio_play_requested.connect(self._play_media_audio)
+        self._reader.audio_play_requested.connect(self._playback_controller.play_media_audio)
         self._reader.footnote_requested.connect(self._on_footnote_requested)
         self._reader.dictionary_lookup_requested.connect(self._on_dictionary_lookup_requested)
         
@@ -500,7 +441,7 @@ class ReaderWindow(QMainWindow):
         self.addAction(translate_page_shortcut)
         
         # Reader -> TTS (read selection)
-        self._reader.read_selection_requested.connect(self._tts_read_selection)
+        self._reader.read_selection_requested.connect(self._playback_controller.tts_read_selection)
         
         # Search panel
         self._search_panel.result_selected.connect(self._on_search_result_selected)
@@ -510,7 +451,7 @@ class ReaderWindow(QMainWindow):
         self._ai.close_requested.connect(self._toggle_sidebar)
 
         # TTS signals
-        self._tts.playback_finished.connect(self._on_playback_finished)
+        self._tts.playback_finished.connect(self._playback_controller.on_playback_finished)
         self._tts.sentence_started.connect(
             lambda idx, text: self._reader.highlight_sentence(text)
         )
@@ -966,39 +907,6 @@ class ReaderWindow(QMainWindow):
     # TTS Controls
     # ═══════════════════════════════════
 
-    def _tts_play(self) -> None:
-        """Start reading the current chapter aloud."""
-        self._tts_stop()  # Stop any running TTS to prevent overlapping or jumping
-        self._is_reading_selection = False
-        self._reader.get_current_chapter_text(self._on_chapter_text_ready)
-
-    def _on_chapter_text_ready(self, text: str) -> None:
-        if text:
-            self._tts.speak_text(text)
-            self._statusbar.showMessage("TTS playing...")
-
-    def _tts_pause_resume(self) -> None:
-        if self._tts.is_paused():
-            self._tts.resume()
-            self._statusbar.showMessage("TTS resumed")
-        elif self._tts.is_playing():
-            self._tts.pause()
-            self._statusbar.showMessage("TTS paused")
-
-    def _tts_stop(self) -> None:
-        self._tts.stop()
-        self._statusbar.showMessage("TTS stopped")
-        self._reader.highlight_sentence("")
-
-    def _tts_read_selection(self, text: str = "") -> None:
-        if not text:
-            text = getattr(self, "_last_selected_text", "")
-        if text:
-            self._is_reading_selection = True
-            self._tts.stop()
-            self._tts.speak_text(text)
-            self._statusbar.showMessage("Reading selection...")
-
     def _toggle_skip_footnotes(self, checked: bool) -> None:
         self._prefs["tts_skip_footnotes"] = checked
         self._tts.set_skip_footnotes(checked)
@@ -1013,106 +921,6 @@ class ReaderWindow(QMainWindow):
     def _toggle_auto_next(self, checked: bool) -> None:
         self._prefs["tts_auto_next"] = checked
         save_prefs(self._prefs)
-
-    def _on_playback_finished(self) -> None:
-        self._statusbar.showMessage("TTS finished")
-        self._reader.highlight_sentence("")
-        
-        # Don't auto-advance if the user manually hit Stop
-        if getattr(self._tts, '_stop_flag', None) and self._tts._stop_flag.is_set():
-            return
-            
-        # Don't auto-advance if we were only reading a selection
-        if getattr(self, '_is_reading_selection', False):
-            return
-            
-        if self._prefs.get("tts_auto_next", False):
-            # Start next chapter and resume reading
-            self._reader._next_chapter()
-            # Slight delay to let the chapter load before extracting text
-            QTimer.singleShot(1000, self._tts_play)
-
-    # ═══════════════════════════════════
-    # Media Playback
-    # ═══════════════════════════════════
-    def _init_media_player(self) -> None:
-        if self._media_player is not None:
-            return
-        
-        self._media_player = QMediaPlayer(self)
-        self._audio_output = QAudioOutput(self)
-        self._media_player.setAudioOutput(self._audio_output)
-        self._media_player.playbackStateChanged.connect(self._on_media_playback_state_changed)
-
-    def _on_media_playback_state_changed(self, state):
-        if state == QMediaPlayer.PlaybackState.StoppedState:
-            if self._current_media_id:
-                if hasattr(self, '_reader') and self._reader and hasattr(self._reader, '_page'):
-                    self._reader._page.runJavaScript(f"if(window.setAudioButtonState) window.setAudioButtonState('{self._current_media_id}', false);")
-                self._current_media_id = None
-
-    def _play_media_audio(self, media_id: str) -> None:
-        """Play or toggle an embedded audio clip via QMediaPlayer."""
-        self._init_media_player()
-        
-        
-        # Toggle if it's the same media and currently playing
-        if self._current_media_id == media_id and self._media_player.playbackState() == QMediaPlayer.PlaybackState.PlayingState:
-            self._media_player.stop()
-            self._statusbar.showMessage("Audio playback stopped")
-            return
-
-        if not self._current_book or not getattr(self._current_book, 'audio_clips', None):
-            return
-            
-        audio_data = self._current_book.audio_clips.get(media_id)
-        if not audio_data:
-            return
-            
-        filename = audio_data.get("file")
-        if not filename:
-            return
-            
-        # Stop TTS if it happens to be running
-        self._tts_stop()
-            
-        # We must extract the audio from the zip to a temporary file,
-        # because QMediaPlayer (FFmpeg) does not understand our custom 'epub://' scheme.
-        try:
-            audio_bytes = self._current_book.get_asset(filename)
-            temp_dir = tempfile.gettempdir()
-            temp_path = os.path.join(temp_dir, f"dante_audio_{media_id}.mp3")
-            with open(temp_path, "wb") as f:
-                f.write(audio_bytes)
-            url = QUrl.fromLocalFile(temp_path)
-        except Exception as e:
-            self._statusbar.showMessage(f"Error loading audio: {e}")
-            return
-            
-        start_ms = int(audio_data.get("start_timestamp", 0) * 1000)
-        title = audio_data.get("title", "Audio Clip")
-        
-        def start_playback():
-            if start_ms > 0:
-                self._media_player.setPosition(start_ms)
-            self._media_player.play()
-            self._statusbar.showMessage(f"Playing audio: {title}")
-            self._current_media_id = media_id
-            if hasattr(self, '_reader') and self._reader and hasattr(self._reader, '_page'):
-                self._reader._page.runJavaScript(f"if(window.setAudioButtonState) window.setAudioButtonState('{media_id}', true);")
-
-        if self._media_player.source() == url:
-            start_playback()
-            return
-
-        self._media_player.setSource(url)
-        
-        def on_media_status_changed(status):
-            if status == QMediaPlayer.MediaStatus.LoadedMedia:
-                start_playback()
-                self._media_player.mediaStatusChanged.disconnect(on_media_status_changed)
-                
-        self._media_player.mediaStatusChanged.connect(on_media_status_changed)
 
     # ═══════════════════════════════════
     def _set_translation_lang(self, lang: str) -> None:
