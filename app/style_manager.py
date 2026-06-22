@@ -30,7 +30,10 @@ def load_qss(filename: str) -> str:
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             qss = f.read()
-            for key, value in THEME.items():
+            # Sort keys by length descending to prevent shorter keys (like @accent_gold) 
+            # from partially replacing longer keys (like @accent_gold_15)
+            sorted_theme = sorted(THEME.items(), key=lambda x: len(x[0]), reverse=True)
+            for key, value in sorted_theme:
                 qss = qss.replace(f"@{key}", value)
             return qss
     except Exception as e:

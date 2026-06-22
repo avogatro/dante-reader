@@ -275,49 +275,14 @@ class ReaderPanel(QWidget):
     def show_placeholder(self) -> None:
         """Display the app logo and name when no book is loaded."""
         icon_path = get_icon_path("logo_mountain.svg")
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body {{
-                    background-color: #0d1117;
-                    color: #8b949e;
-                    font-family: system-ui, sans-serif;
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    height: 100vh;
-                    margin: 0;
-                    user-select: none;
-                }}
-                img {{
-                    width: 120px;
-                    opacity: 0.8;
-                    margin-bottom: 20px;
-                }}
-                h1 {{
-                    color: #c9a96e;
-                    font-size: 28px;
-                    margin: 0;
-                    font-weight: 600;
-                }}
-                p {{
-                    font-size: 15px;
-                    margin-top: 10px;
-                    opacity: 0.7;
-                }}
-            </style>
-        </head>
-        <body>
-            <img src="file:///{icon_path}" alt="Logo">
-            <h1>Dante Reader</h1>
-            <p>Open a book from the Library to start reading</p>
-        </body>
-        </html>
-        """
         import os
+        template_path = os.path.join(os.path.dirname(__file__), "assets", "html", "placeholder.html")
+        try:
+            with open(template_path, "r", encoding="utf-8") as f:
+                html = f.read().replace("{icon_path}", icon_path)
+        except Exception:
+            html = "<html><body><h1>Dante Reader</h1></body></html>"
+        
         self._web.setHtml(html, QUrl(f"file:///{os.path.dirname(__file__).replace(chr(92), '/')}"))
 
     def set_tts_target(self, target: str):
@@ -348,57 +313,9 @@ class ReaderPanel(QWidget):
 
     def _update_table_layout(self):
         css_str = self._get_table_layout_css()
-        js = f"""
-        (function() {{
-            // 1. Find an anchor element that is currently visible
-            var anchor = null;
-            var anchorOffset = 0;
-            
-            var elements = document.querySelectorAll('tr, p, h1, h2, h3, h4, h5, h6');
-            for (var i = 0; i < elements.length; i++) {{
-                var el = elements[i];
-                var rect = el.getBoundingClientRect();
-                if (rect.width === 0 || rect.height === 0) continue;
-                
-                // Prefer elements that are genuinely in view
-                if ((rect.top >= 0 && rect.top <= window.innerHeight / 2) || (rect.top < 0 && rect.bottom > window.innerHeight / 3)) {{
-                    anchor = el;
-                    anchorOffset = rect.top;
-                    break;
-                }}
-            }}
-
-            // 2. Update the style
-            var styleId = 'table-column-toggles';
-            var styleEl = document.getElementById(styleId);
-            if (!styleEl) {{
-                styleEl = document.createElement('style');
-                styleEl.id = styleId;
-                var head = document.head || document.getElementsByTagName('head')[0] || document.documentElement;
-                if (head) {{
-                    head.appendChild(styleEl);
-                }}
-            }}
-            styleEl.textContent = '{css_str}';
-            
-            // 3. Restore the relative scroll position
-            if (anchor) {{
-                var restoreScroll = function() {{
-                    var newRect = anchor.getBoundingClientRect();
-                    var diff = newRect.top - anchorOffset;
-                    if (diff !== 0 && Math.abs(diff) > 1) {{
-                        window.scrollBy(0, diff);
-                    }}
-                }};
-                // Try multiple times as browser layout engines might defer the paint
-                restoreScroll();
-                requestAnimationFrame(function() {{
-                    restoreScroll();
-                    setTimeout(restoreScroll, 50);
-                }});
-            }}
-        }})();
-        """
+        import json
+        safe_css = json.dumps(css_str)
+        js = f"if (typeof window.updateTableLayoutCss === 'function') {{ window.updateTableLayoutCss({safe_css}); }}"
         self._page.runJavaScript(js)
 
     def _translate_visible_page(self):
@@ -407,29 +324,7 @@ class ReaderPanel(QWidget):
         if trans_chk and not trans_chk.isChecked():
             trans_chk.setChecked(True)
             
-        js = """
-        (function() {
-            var rows = document.querySelectorAll('[data-trans-id]');
-            var visibleIds = [];
-            
-            // Get viewport height with a 50% buffer above and below
-            var buffer = window.innerHeight * 0.5;
-            var topBound = -buffer;
-            var bottomBound = window.innerHeight + buffer;
-            
-            for (var i = 0; i < rows.length; i++) {
-                var rect = rows[i].getBoundingClientRect();
-                // Check if row is within our buffered viewport
-                if (rect.bottom > topBound && rect.top < bottomBound) {
-                    var id = rows[i].getAttribute('data-trans-id');
-                    if (id) {
-                        visibleIds.push(id);
-                    }
-                }
-            }
-            return visibleIds;
-        })();
-        """
+        js = "if (typeof window.translationHelper !== 'undefined') { window.translationHelper.getVisibleTransIds(); } else { []; }"
         self._page.runJavaScript(js, self._on_visible_ids_received)
 
     def _on_visible_ids_received(self, visible_ids):
@@ -454,54 +349,9 @@ class ReaderPanel(QWidget):
             translations = self._translation_manager.get_chapter(index)
             import json
             is_dante = getattr(self._book, 'is_dante', False)
-            js = f"""
-            (function() {{
-                var trans = {json.dumps(translations)};
-                var parser = new DOMParser();
-                var isDante = {str(is_dante).lower()};
-                
-                for (var id in trans) {{
-                    if (isDante) {{
-                        var p = document.querySelector('p[data-trans-id="' + id + '"]');
-                        if (p) {{
-                            var td = p.closest('td');
-                            if (td && td.classList.contains('track-text')) {{
-                                var tr = p.closest('tr');
-                                if (tr) {{
-                                    var ai_td = tr.querySelector('td.track-translation');
-                                    if (!ai_td) {{
-                                        ai_td = document.createElement('td');
-                                        ai_td.className = 'track-translation';
-                                        tr.appendChild(ai_td);
-                                    }}
-                                    var ai_p = ai_td.querySelector('p[data-trans-id="' + id + '_ai"]');
-                                    if (!ai_p) {{
-                                        ai_p = document.createElement('p');
-                                        ai_p.className = 'line';
-                                        ai_p.setAttribute('data-trans-id', id + '_ai');
-                                        ai_td.appendChild(ai_p);
-                                    }}
-                                    ai_p.innerHTML = trans[id];
-                                }}
-                            }}
-                        }}
-                    }} else {{
-                        var el = document.querySelector('[data-trans-id="' + id + '"] .track-translation');
-                        if (el) {{
-                            try {{
-                                el.innerHTML = trans[id];
-                            }} catch (e) {{
-                                var doc = parser.parseFromString(trans[id], 'text/html');
-                                el.innerHTML = '';
-                                Array.from(doc.body.childNodes).forEach(node => {{
-                                    el.appendChild(document.importNode(node, true));
-                                }});
-                            }}
-                        }}
-                    }}
-                }}
-            }})();
-            """
+            safe_trans = json.dumps(translations)
+            safe_is_dante = str(is_dante).lower()
+            js = f"if (typeof window.translationHelper !== 'undefined') {{ window.translationHelper.injectTranslations({safe_trans}, {safe_is_dante}); }}"
             self._page.runJavaScript(js)
 
     def _on_translation_error(self, index: int, error_msg: str):
@@ -726,18 +576,24 @@ class ReaderPanel(QWidget):
             xml_decl = match.group(1).strip() + "\n"
             html = html[match.end():]
 
-        html = self._rewrite_asset_urls(html, file_path)
+        try:
+            from app.services.html_processor import EpubHtmlProcessor
+            settings = {
+                "page_width": self._page_width,
+                "font_family": self._font_family,
+                "font_size": self._font_size,
+                "line_height": self._line_height
+            }
+            html = EpubHtmlProcessor.process(html, file_path, settings)
+            
+            # Inject the active table layout directly into the HTML so it takes effect instantly
+            layout_css = f"<style id='table-column-toggles'>{self._get_table_layout_css()}</style>"
+            html = EpubHtmlProcessor._inject_head_content(html, layout_css)
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            print("CRASH IN HTML PROCESSOR:", e)
         
-        html = self._inject_dark_css(html)
-        html = self._inject_reading_style(html)
-        html = self._inject_dictionary_js(html)
-        html = self._inject_image_zoom_js(html)
-        
-        # Inject the active table layout directly into the HTML so it takes effect instantly
-        layout_css = f"<style id='table-column-toggles'>{self._get_table_layout_css()}</style>"
-        html = self._inject_head_content(html, layout_css)
-        
-        html = self._inject_next_button(html)
         self._last_rendered_html = xml_decl + html
         
         # Inject translation IDs for EPUBs
@@ -757,159 +613,6 @@ class ReaderPanel(QWidget):
                 
         self._last_rendered_html = xml_decl + html
         return self._last_rendered_html
-
-    def _inject_head_content(self, html: str, content: str) -> str:
-        """Robustly inject content into the <head> section, handling self-closing tags."""
-        if re.search(r'</head>', html, re.IGNORECASE):
-            return re.sub(r'</head>', f"{content}\n</head>", html, count=1, flags=re.IGNORECASE)
-        elif re.search(r'<head\s*/>', html, re.IGNORECASE):
-            return re.sub(r'<head\s*/>', f"<head>\n{content}\n</head>", html, count=1, flags=re.IGNORECASE)
-        elif re.search(r'<body', html, re.IGNORECASE):
-            return re.sub(r'(<body[^>]*>)', f"{content}\n" + r'\1', html, count=1, flags=re.IGNORECASE)
-        elif re.search(r'<html[^>]*>', html, re.IGNORECASE):
-            return re.sub(r'(<html[^>]*>)', r'\1' + f"\n{content}\n", html, count=1, flags=re.IGNORECASE)
-        else:
-            # Fallback: place at the very end to avoid disrupting XML declarations at the start
-            return html + f"\n{content}"
-
-    def _inject_next_button(self, html: str) -> str:
-        """Inject a 'Next' button at the bottom of the page."""
-        btn_html = """
-        <div style="text-align: center; margin-top: 100px; margin-bottom: 80px;">
-            <a href="epub://action/next-chapter" style="text-decoration: none; padding: 36px 72px; border-radius: 16px; background: #444444; color: #e0e0e0; cursor: pointer; font-family: sans-serif; font-size: 48px; font-weight: bold; box-shadow: 0 8px 12px rgba(0,0,0,0.3);">Next ⬇</a>
-        </div>
-        """
-        if re.search(r'</body>', html, re.IGNORECASE):
-            html = re.sub(r'</body>', f"{btn_html}\n</body>", html, count=1, flags=re.IGNORECASE)
-        else:
-            html = html + f"\n{btn_html}"
-        return html
-
-    def _rewrite_asset_urls(self, html: str, chapter_file: str) -> str:
-        """Rewrite relative asset URLs to use the epub:// scheme."""
-        chapter_dir = posixpath.dirname(chapter_file)
-
-        def replace_url(match):
-            attr = match.group(1)
-            url = match.group(2)
-            quote = match.group(3)
-
-            # Skip absolute URLs, data URIs, and anchors
-            if url.startswith(("http://", "https://", "data:", "#", "epub://")):
-                return match.group(0)
-
-            # Resolve relative path
-            if chapter_dir:
-                resolved = posixpath.normpath(posixpath.join(chapter_dir, url))
-            else:
-                resolved = url
-
-            return f'{attr}="epub://content/{resolved}{quote}'
-
-        # Match src="...", href="..." (for CSS links), url(...)
-        html = re.sub(
-            r'(src|href)\s*=\s*"([^"]*?)(")',
-            replace_url,
-            html,
-            flags=re.IGNORECASE,
-        )
-        html = re.sub(
-            r"(src|href)\s*=\s*'([^']*?)(')",
-            replace_url,
-            html,
-            flags=re.IGNORECASE,
-        )
-
-        return html
-
-    def _inject_dark_css(self, html: str) -> str:
-        """Inject dark mode CSS into the chapter HTML."""
-        dark_style = f"<style id='dark-reader-css'>\n{READER_DARK_CSS}\n</style>"
-        return self._inject_head_content(html, dark_style)
-
-    def _inject_reading_style(self, html: str) -> str:
-        """Inject user-configurable reading styles (font, size, spacing)."""
-        width_css = f"max-width: {self._page_width}px !important;" if self._page_width > 0 else "max-width: 100% !important;"
-        style = f"""
-        <style id='reader-prefs-css'>
-            body {{
-                font-family: "{self._font_family}", Georgia, "Times New Roman", serif !important;
-                font-size: {self._font_size}px !important;
-                line-height: {self._line_height} !important;
-                {width_css}
-                margin: 0 auto !important;
-                padding: 30px 40px !important;
-            }}
-            p, div, span, li, td, th {{
-                font-size: inherit !important;
-                line-height: inherit !important;
-            }}
-        </style>
-        """
-        return self._inject_head_content(html, style)
-
-    def _inject_dictionary_js(self, html: str) -> str:
-        """Inject Javascript to listen for double clicks on words in the original text."""
-        js = """
-        <script id='dictionary-js'>
-        document.addEventListener('dblclick', function(e) {
-            var targetClass = e.target.closest('.track-text, .track-original');
-            if (!targetClass) return;
-            
-            var selection = window.getSelection();
-            if (!selection.rangeCount) return;
-            
-            var word = selection.toString().trim();
-            if (word.length > 0) {
-                window.location.href = "epub://action/dict?word=" + encodeURIComponent(word);
-            }
-        });
-        </script>
-        """
-        return self._inject_head_content(html, js)
-
-    def _inject_image_zoom_js(self, html: str) -> str:
-        """Inject JS to handle zooming images to max size when clicked."""
-        js_script = """
-        <script>
-        (function() {
-            document.addEventListener('click', function(e) {
-                if (e.target.tagName.toLowerCase() === 'img') {
-                    // Check if already zoomed
-                    if (e.target.dataset.zoomed === 'true') {
-                        e.target.dataset.zoomed = 'false';
-                        e.target.style.position = '';
-                        e.target.style.top = '';
-                        e.target.style.left = '';
-                        e.target.style.width = '';
-                        e.target.style.height = '';
-                        e.target.style.maxWidth = '';
-                        e.target.style.maxHeight = '';
-                        e.target.style.zIndex = '';
-                        e.target.style.cursor = 'zoom-in';
-                        e.target.style.backgroundColor = '';
-                        e.target.style.objectFit = '';
-                    } else {
-                        // Zoom in
-                        e.target.dataset.zoomed = 'true';
-                        e.target.style.position = 'fixed';
-                        e.target.style.top = '0';
-                        e.target.style.left = '0';
-                        e.target.style.width = '100vw';
-                        e.target.style.height = '100vh';
-                        e.target.style.maxWidth = '100vw';
-                        e.target.style.maxHeight = '100vh';
-                        e.target.style.zIndex = '9999';
-                        e.target.style.cursor = 'zoom-out';
-                        e.target.style.backgroundColor = 'rgba(0,0,0,0.85)';
-                        e.target.style.objectFit = 'contain';
-                    }
-                }
-            });
-        })();
-        </script>
-        """
-        return self._inject_head_content(html, js_script)
 
     def _update_nav_state(self) -> None:
         """Update navigation buttons and label."""
@@ -1128,49 +831,7 @@ class ReaderPanel(QWidget):
                 self.text_selected.emit(cleaned)
                 
         # Constrain selection to a single column in table/grid mode, and identify track
-        js = """
-        (function() {
-            var output = { text: '', track: '' };
-            var sel = window.getSelection();
-            if (!sel || sel.rangeCount === 0) return JSON.stringify(output);
-            
-            var anchor = sel.anchorNode;
-            if (!anchor) {
-                output.text = window.getSelection().toString();
-                return JSON.stringify(output);
-            }
-            
-            var cell = anchor.nodeType === 3 ? anchor.parentElement.closest('[class*="track-"]') : anchor.closest('[class*="track-"]');
-            if (!cell) {
-                output.text = window.getSelection().toString();
-                return JSON.stringify(output);
-            }
-            
-            var className = Array.from(cell.classList).find(c => c.startsWith('track-'));
-            if (!className) {
-                output.text = window.getSelection().toString();
-                return JSON.stringify(output);
-            }
-            
-            output.track = className.replace('track-', '');
-            
-            var range = sel.getRangeAt(0);
-            var fragment = range.cloneContents();
-            
-            var tempDiv = document.createElement('div');
-            tempDiv.appendChild(fragment);
-            
-            var badCells = tempDiv.querySelectorAll('[class*="track-"]');
-            badCells.forEach(node => {
-                if (!node.classList.contains(className)) {
-                    node.remove();
-                }
-            });
-            
-            output.text = tempDiv.innerText.trim();
-            return JSON.stringify(output);
-        })();
-        """
+        js = "if (typeof window.getConstrainedSelection === 'function') { window.getConstrainedSelection(); } else { JSON.stringify({text:'', track:''}); }"
         self._page.runJavaScript(js, _emit_cleaned)
 
     # ── Navigation ──
@@ -1287,102 +948,10 @@ class ReaderPanel(QWidget):
                 target_selector = ".track-original"
             else:
                 target_selector = ".track-translation"
-        
-        # JS to get text from selection/cursor to the end of the chapter.
-        # If in Dante mode, it restricts extraction to the selected `target_selector`.
-        js = f"""
-        (function() {{
-            var sel = window.getSelection();
-            var targetClass = '{target_selector}';
-            if (targetClass && document.querySelectorAll(targetClass).length === 0) {{
-                targetClass = '';
-            }}
-            
-            // Function to extract text from a specific target across all rows
-            function extractDanteText(fromNode) {{
-                var cells = Array.from(document.querySelectorAll(targetClass));
-                var startIndex = 0;
-                if (fromNode) {{
-                    var closestCell = fromNode.nodeType === 3 ? fromNode.parentElement.closest('td, .track-original, .track-translation') : fromNode.closest('td, .track-original, .track-translation');
-                    if (closestCell) {{
-                        var tr = closestCell.closest('tr, .translation-row');
-                        if (tr) {{
-                            var targetCell = tr.querySelector(targetClass);
-                            startIndex = cells.indexOf(targetCell);
-                        }}
-                        if (startIndex === -1) startIndex = 0;
-                    }}
-                }}
-                
-                var textPieces = [];
-                for (var i = startIndex; i < cells.length; i++) {{
-                    var cell = cells[i];
-                    var clone = cell.cloneNode(true);
-                    
-                    // Remove multimedia buttons, images, and superscripts (like [183])
-                    var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
-                    elementsToRemove.forEach(function(el) {{ el.remove(); }});
-                    
-                    // Add newlines to block elements so textContent doesn't crush lines together
-                    var blocks = clone.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li');
-                    blocks.forEach(function(el) {{ el.appendChild(document.createTextNode('\\n')); }});
-                    var brs = clone.querySelectorAll('br');
-                    brs.forEach(function(el) {{ el.replaceWith('\\n'); }});
-                    
-                    var text = clone.textContent;
-                    if (text && text.trim().length > 0) {{
-                        textPieces.push(text.trim());
-                    }}
-                }}
-                return textPieces.join('\\n\\n');
-            }}
-            
-            if (targetClass && document.querySelectorAll(targetClass).length > 0) {{
-                return extractDanteText(sel.anchorNode);
-            }} else {{
-                if (sel.rangeCount > 0) {{
-                    if (!sel.isCollapsed) {{
-                        // Selection is highlighted text, just return that
-                        var div = document.createElement('div');
-                        div.appendChild(sel.getRangeAt(0).cloneContents());
-                        var unwanted = div.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
-                        unwanted.forEach(function(el) {{ el.remove(); }});
-                        return div.textContent;
-                    }} else if (sel.anchorNode && document.body.contains(sel.anchorNode)) {{
-                        // Read from cursor to end
-                        var range = document.createRange();
-                        range.setStart(sel.anchorNode, sel.anchorOffset);
-                        range.setEndAfter(document.body.lastChild || document.body);
-                        var fragment = range.cloneContents();
-                        var div = document.createElement('div');
-                        div.appendChild(fragment);
-                        
-                        var unwanted = div.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
-                        unwanted.forEach(function(el) {{ el.remove(); }});
-                        
-                        var blocks = div.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li');
-                        blocks.forEach(function(el) {{ el.appendChild(document.createTextNode('\\n')); }});
-                        var brs = div.querySelectorAll('br');
-                        brs.forEach(function(el) {{ el.replaceWith('\\n'); }});
-                        
-                        return div.textContent;
-                    }}
-                }}
-                var clone = document.body.cloneNode(true);
-                var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
-                elementsToRemove.forEach(function(el) {{ el.remove(); }});
-                
-                var blocks = clone.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li');
-                blocks.forEach(function(el) {{ el.appendChild(document.createTextNode('\\n')); }});
-                var brs = clone.querySelectorAll('br');
-                brs.forEach(function(el) {{ el.replaceWith('\\n'); }});
-                
-                return clone.textContent;
-            }}
-        }})()
-        """
+        import json
+        safe_target = json.dumps(target_selector) if target_selector else "''"
+        js = f"if (typeof window.extractChapterText === 'function') {{ window.extractChapterText({safe_target}); }} else {{ ''; }}"
         self._get_active_page().runJavaScript(js, callback)
-
     def get_current_chapter_index(self) -> int:
         return self._current_chapter
 
@@ -1405,194 +974,15 @@ class ReaderPanel(QWidget):
                 
         safe_target = json.dumps(target_class) if target_class else "''"
        
-        js = f"""
-        (function() {{
-            // Clear previous hiliteColor spans and any leftover transparent spans
-            var spans = document.querySelectorAll('span[style*="background-color: rgba(201, 169, 110, 0.4)"], span[style*="background-color: transparent"]');
-            spans.forEach(el => {{
-                var parent = el.parentNode;
-                while (el.firstChild) {{
-                    parent.insertBefore(el.firstChild, el);
-                }}
-                parent.removeChild(el);
-            }});
-            
-            if ({safe_text} === '') return;
-            
-            var lines = {safe_text}.split(/[\\r\\n]+/).map(s => s.trim()).filter(s => s.length > 0);
-            if (lines.length === 0) return;
-            
-            var targetClass = {safe_target};
-            var sel = window.getSelection();
-            sel.removeAllRanges();
-            
-            var foundAny = false;
-            document.designMode = 'on';
-            
-            for (var j = 0; j < lines.length; j++) {{
-                var searchStr = lines[j];
-                var textsToTry = [searchStr, searchStr.replace(/\\s+/g, ' ').trim()];
-                var foundLine = false;
-                
-                var savedRange = null;
-                if (sel.rangeCount > 0) {{
-                    savedRange = sel.getRangeAt(0).cloneRange();
-                }}
-                
-                for (var i = 0; i < textsToTry.length; i++) {{
-                    var tryStr = textsToTry[i];
-                    if (!tryStr) continue;
-                    
-                    if (i > 0) {{
-                        sel.removeAllRanges();
-                        if (savedRange) {{
-                            sel.addRange(savedRange);
-                        }}
-                    }}
-                    
-                    var iterations = 0;
-                    while (iterations < 50) {{
-                        var matched = window.find(tryStr, false, false, false, false, false, false);
-                        if (!matched) break; 
-                        
-                        if (targetClass) {{
-                            var node = window.getSelection().anchorNode;
-                            var container = node ? (node.nodeType === 3 ? node.parentElement : node) : null;
-                            if (container && container.closest(targetClass)) {{
-                                foundLine = true;
-                                break;
-                            }}
-                        }} else {{
-                            foundLine = true;
-                            break;
-                        }}
-                        iterations++;
-                    }}
-                    
-                    if (foundLine) break;
-                }}
-                
-                if (foundLine) {{
-                    foundAny = true;
-                    document.execCommand('hiliteColor', false, 'rgba(201, 169, 110, 0.4)');
-                    // Collapse to end so next line searches forward from here
-                    if (sel.rangeCount > 0) {{
-                        sel.collapseToEnd();
-                    }}
-                }}
-            }}
-            
-            document.designMode = 'off';
-            
-            if (foundAny) {{
-                // Scroll into view only if out of bounds, placing it near the top
-                var currentSel = window.getSelection();
-                if (currentSel.rangeCount > 0) {{
-                    var range = currentSel.getRangeAt(0);
-                    var rect = range.getBoundingClientRect();
-                    var viewHeight = window.innerHeight || document.documentElement.clientHeight;
-                    
-                    var isVisible = rect.top >= 0 && (rect.bottom <= viewHeight || rect.height > viewHeight);
-                    if (!isVisible) {{
-                        window.scrollBy({{top: rect.top - 20, behavior: 'smooth'}});
-                    }}
-                }}
-            }}
-        }})()
-        """
+        js = f"if (typeof window.highlightTTS === 'function') {{ window.highlightTTS({safe_text}, {safe_target}); }}"
         self._get_active_page().runJavaScript(js)
 
     # ── Context Menu ──
 
     def _show_context_menu(self, pos) -> None:
         """Show custom right-click context menu with View Source option."""
-        menu = QMenu(self)
-
-        # Keep standard actions: Copy, Select All
-        page = self._web.page()
-        copy_action = page.action(QWebEnginePage.WebAction.Copy)
-        copy_action.setText(self.tr("Copy") + "\tCtrl+C")
-        copy_action.setIcon(get_icon("copy.svg"))
-        copy_action.setShortcut("Ctrl+C")
-        select_all_action = page.action(QWebEnginePage.WebAction.SelectAll)
-        select_all_action.setText(self.tr("Select All") + "\tCtrl+A")
-        select_all_action.setIcon(get_icon("select_all.svg"))
-        select_all_action.setShortcut("Ctrl+A")
-        menu.addAction(copy_action)
-        menu.addAction(select_all_action)
-        menu.addSeparator()
-
-        # Custom: View Page Source
-        source_action = QAction(get_icon("code.svg"), self.tr("View Page Source"), self)
-        source_action.setShortcut("Ctrl+U")
-        source_action.triggered.connect(self._open_source_viewer)
-        menu.addAction(source_action)
-
-        # Custom: Read Selection / AI (if text is selected)
-        selected_text = self._page.selectedText().strip()
-        if selected_text:
-            menu.addSeparator()
-            
-            read_sel_action = QAction(get_icon("read.svg"), self.tr("Read Selected Text"), self)
-            read_sel_action.setShortcut("Ctrl+Shift+S")
-            read_sel_action.triggered.connect(lambda: self.read_selection_requested.emit(selected_text))
-            menu.addAction(read_sel_action)
-            
-            explain_action = QAction(get_icon("explain.svg"), self.tr("AI Explain"), self)
-            explain_action.setShortcut("Ctrl+E")
-            explain_action.triggered.connect(self.ai_explain_requested.emit)
-            menu.addAction(explain_action)
-            
-            translate_action = QAction(get_icon("translate.svg"), self.tr("AI Translate"), self)
-            translate_action.setShortcut("Ctrl+T")
-            translate_action.triggered.connect(self.ai_translate_requested.emit)
-            menu.addAction(translate_action)
-            
-        else:
-            menu.addSeparator()
-            bm_action = QAction(get_icon("bookmark.svg"), self.tr("Add Bookmark"), self)
-            bm_action.setShortcut("Ctrl+B")
-            bm_action.triggered.connect(self._trigger_add_bookmark)
-            menu.addAction(bm_action)
-            
-        note_action = QAction(get_icon("note.svg"), self.tr("Add Note"), self)
-        note_action.setShortcut("Ctrl+N")
-        note_action.triggered.connect(lambda: self._trigger_add_note(selected_text))
-        menu.addAction(note_action)
-            
-        menu.addSeparator()
-
-        # Custom: Dictionary Lookup
-        # We also trigger Dictionary if selected text is a single word.
-        if selected_text and " " not in selected_text and len(selected_text) < 30:
-            dict_action = QAction(get_icon("book-a.svg"), self.tr("Dictionary Lookup"), self)
-            dict_action.triggered.connect(lambda: self.dictionary_lookup_requested.emit(selected_text))
-            menu.addAction(dict_action)
-            
-        menu.addSeparator()
-        play_action = QAction(get_icon("play.svg"), self.tr("Play from Cursor / Play Chapter"), self)
-        play_action.setShortcut("F5")
-        play_action.triggered.connect(self.play_chapter_requested.emit)
-        menu.addAction(play_action)
-        
-        stop_action = QAction(get_icon("stop.svg"), self.tr("Stop TTS"), self)
-        stop_action = QAction(get_icon("stop.svg"), self.tr("Stop TTS") + "\tF7", self)
-        stop_action.setShortcut("F7")
-        stop_action.triggered.connect(self.stop_tts_requested.emit)
-        menu.addAction(stop_action)
-        
-        menu.addSeparator()
-        prev_action = QAction(get_icon("prev.svg"), self.tr("Previous Page") + "\tLeft", self)
-        prev_action.setShortcut("Left")
-        prev_action.triggered.connect(self.prev_chapter_requested.emit)
-        menu.addAction(prev_action)
-        
-        next_action = QAction(get_icon("next.svg"), self.tr("Next Page") + "\tRight", self)
-        next_action.setShortcut("Right")
-        next_action.triggered.connect(self.next_chapter_requested.emit)
-        menu.addAction(next_action)
-
-        menu.exec(self._web.mapToGlobal(pos))
+        from app.reader_context_menu import ReaderContextMenu
+        ReaderContextMenu.show_menu(self, pos)
 
     def _open_source_viewer(self) -> None:
         """Open a new window showing the current chapter's source and CSS."""
