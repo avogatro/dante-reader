@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>{title}</title>
+<style>
+body { font-family: 'Georgia', serif; padding: 20px; line-height: 1.6; }
+table.dante-grid { width: 100%; border-collapse: collapse; }
+td { vertical-align: top; padding: 0 15px; }
+.stanza-row { margin-bottom: 1.5em; }
+.line { margin: 0; }
+button.media-btn { margin-top: 10px; cursor: pointer; background-color: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 10px; border-radius: 6px; font-size: 0.9em; }
+button.media-btn:hover { background-color: #30363d; }
+[data-foot-id] { color: #58a6ff; cursor: pointer; text-decoration: underline; }
+[data-image-id] { width: 100%; max-width: 200px; height: auto; display: block; margin-bottom: 10px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<h1>{title}</h1>
+<table class="dante-grid">
+{table_rows}
+</table>
+<script>
+// <![CDATA[
+window._dante_media = {media_json};
+{media_handler_script}
+// ]]>
+</script>
+</body>
+</html>

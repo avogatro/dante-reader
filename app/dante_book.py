@@ -19,37 +19,15 @@ class DanteChapter:
         """
         Generate a single-page HTML table containing all tracks.
         """
-        html = [
-            "<?xml version='1.0' encoding='utf-8'?>",
-            "<!DOCTYPE html>",
-            "<html xmlns=\"http://www.w3.org/1999/xhtml\">",
-            "<head>",
-            f"<title>{self.title}</title>",
-            "<style>",
-            "body { font-family: 'Georgia', serif; padding: 20px; line-height: 1.6; }",
-            "table.dante-grid { width: 100%; border-collapse: collapse; }",
-            "td { vertical-align: top; padding: 0 15px; }",
-            ".stanza-row { margin-bottom: 1.5em; }",
-            ".line { margin: 0; }",
-            "button.media-btn { margin-top: 10px; cursor: pointer; background-color: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 5px 10px; border-radius: 6px; font-size: 0.9em; }",
-            "button.media-btn:hover { background-color: #30363d; }",
-            "[data-foot-id] { color: #58a6ff; cursor: pointer; text-decoration: underline; }",
-            "[data-image-id] { width: 100%; max-width: 200px; height: auto; display: block; margin-bottom: 10px; border-radius: 4px; }",
-            "</style>",
-            "</head>",
-            "<body>",
-            f"<h1>{self.title}</h1>",
-            "<table class=\"dante-grid\">"
-        ]
-
+        rows = []
         trans_id = 0
         for block in self._blocks:
             # We add a spacer row between blocks/stanzas
-            html.append('<tr class="stanza-row"><td colspan="3" style="height: 1.5em;"></td></tr>')
+            rows.append('<tr class="stanza-row"><td colspan="3" style="height: 1.5em;"></td></tr>')
             
             # V2 Schema
             block_id = block.get("id", f"block_{trans_id}")
-            html.append(f'<tr class="block-row" id="{block_id}">')
+            rows.append(f'<tr class="block-row" id="{block_id}">')
             tracks = block.get("tracks", {})
             
             # Fetch metadata tracks from book to maintain order if possible
@@ -59,79 +37,41 @@ class DanteChapter:
             for track_key in track_defs.keys():
                 lines = tracks.get(track_key, [])
                 
-                html.append(f'<td class="track-{track_key}">')
+                rows.append(f'<td class="track-{track_key}">')
                 for line_text in lines:
-                    html.append(f'<p class="line" data-trans-id="trans_{trans_id}">{line_text}</p>')
+                    rows.append(f'<p class="line" data-trans-id="trans_{trans_id}">{line_text}</p>')
                     trans_id += 1
-                html.append('</td>')
+                rows.append('</td>')
                 
-            html.append('</tr>')
+            rows.append('</tr>')
 
-        html.append("</table>")
-        
-        # Inject Media JS Bridge
         import json
+        import os
+        
         media_registry = {
             "audio": getattr(self._book_ref, 'audio_clips', {}),
             "video": getattr(self._book_ref, 'videos', {}),
             "foot": getattr(self._book_ref, 'footnotes', {})
         }
-        js_script = f"""
-        <script>
-        (function() {{
-            const media = {json.dumps(media_registry)};
-            window._dante_media = media;
-            
-            window.setAudioButtonState = function(id, isPlaying) {{
-                document.querySelectorAll('[data-audio-id]').forEach(el => {{
-                    const btnId = el.getAttribute('data-audio-id');
-                    if (!media.audio[btnId]) return;
-                    
-                    if (btnId === id && isPlaying) {{
-                        el.innerHTML = '<button class="media-btn">⏸ ' + media.audio[btnId].title + ' (Stop)</button>';
-                    }} else {{
-                        el.innerHTML = '<button class="media-btn">▶ ' + media.audio[btnId].title + '</button>';
-                    }}
-                }});
-            }};
-            
-            // Initial hydrate
-            window.setAudioButtonState(null, false);
-            
-            document.querySelectorAll('[data-video-id]').forEach(el => {{
-                const id = el.getAttribute('data-video-id');
-                if (media.video[id] && media.video[id].title) {{
-                    el.innerHTML = '<button class="media-btn">📺 ' + media.video[id].title + '</button>';
-                }}
-            }});
-            
-            document.addEventListener('click', e => {{
-                const audioDiv = e.target.closest('[data-audio-id]');
-                if (audioDiv) {{
-                    window.location.href = 'epub://action/media?type=audio&id=' + audioDiv.getAttribute('data-audio-id');
-                    return;
-                }}
-                
-                const videoDiv = e.target.closest('[data-video-id]');
-                if (videoDiv) {{
-                    window.location.href = 'epub://action/media?type=video&id=' + videoDiv.getAttribute('data-video-id');
-                    return;
-                }}
-                
-                const footLink = e.target.closest('[data-foot-id]');
-                if (footLink) {{
-                    window.location.href = 'epub://action/media?type=foot&id=' + footLink.getAttribute('data-foot-id');
-                    return;
-                }}
-            }});
-        }})();
-        </script>
-        """
-        html.append(js_script)
-        html.append("</body>")
-        html.append("</html>")
         
-        return "\n".join(html)
+        base_dir = os.path.dirname(__file__)
+        template_path = os.path.join(base_dir, "assets", "html", "dante_template.html")
+        js_path = os.path.join(base_dir, "assets", "js", "media_handler.js")
+        
+        try:
+            with open(template_path, "r", encoding="utf-8") as f:
+                html_template = f.read()
+            with open(js_path, "r", encoding="utf-8") as f:
+                media_script = f.read()
+        except Exception:
+            return "<html><body>Error loading template</body></html>"
+            
+        html = html_template.replace("{title}", self.title)
+        html = html.replace("{table_rows}", "\n".join(rows))
+        html = html.replace("{media_json}", json.dumps(media_registry))
+        html = html.replace("{media_handler_script}", media_script)
+        
+        return html
 
 class DanteBook:
     """High-level wrapper around a custom .dante zip file."""

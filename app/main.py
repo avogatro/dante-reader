@@ -6,6 +6,10 @@ A premium dark-mode EPUB reader with TTS narration and Gemini AI integration.
 import sys
 import os
 import io
+import warnings
+
+# Suppress harmless NLTK WordNet parsing warnings for Chinese offsets
+warnings.filterwarnings("ignore", module="nltk.corpus.reader.wordnet")
 
 # No IO wrappers
 
