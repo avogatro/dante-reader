@@ -334,3 +334,29 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
 > **Symptom:** The core `reader_panel` and `reader_window` files were cluttered with over 60 `import` statements hidden inside method bodies, making dependencies impossible to track and adding minor runtime overhead.
 > **Lesson:** While inline imports are valid tools to prevent circular dependencies (e.g. inside a thread `run` method) or to lazily load extremely heavy optional dependencies (`ebooklib`), standard library modules (`os`, `json`, `time`) and core PyQt components should *always* be hoisted to the top of the file to maintain clean code and explicit dependency graphs.
 
+---
+
+## 🎨 Layout Persistence & Chromium Refresh Quirks (Phase 11)
+
+### 🏆 Phase 11 Achievements
+
+1. **Universal SVG Cover Fix Decoupling**
+   - Discovered that structural EPUB layout fixes (like `min-height: 100vh` and SVG aspect ratio corrections) were incorrectly trapped inside the Dark Mode CSS stylesheet (`app/dark_theme.py`).
+   - Cleanly decoupled structural CSS from thematic CSS, moving universal sizing rules directly into the `EpubHtmlProcessor`'s base reading style, ensuring that switching to Light Mode no longer completely breaks cover image scaling.
+
+2. **UI Feature Clarity & Renaming**
+   - Renamed the highly confusing `epub_markdown_mode` to `epub_pymupdf_mode` internally, and updated the frontend UI to display "ePub Extract" to clearly communicate that the button forces EPUBs to be parsed via PyMuPDF's extraction engine, preventing user confusion over nonexistent markdown features.
+
+### 💡 Phase 11 Lessons Learned
+
+> [!CAUTION]
+> **The `QWebEngineView.setUrl()` Optimization No-Op**
+> **Symptom:** When users toggled font sizes or dark mode, the changes would not appear on screen. The user would have to manually scroll the page or change chapters to force a redraw.
+> **Diagnosis:** When reloading an EPUB chapter with new CSS, `reader_panel` called `self._web.setUrl(url)`. Chromium actively tracks the current `QUrl`. If the newly requested URL exactly matches the current URL, Chromium treats it as a no-op optimization and completely skips the network/scheme handler request, meaning the new CSS is never injected!
+> **Lesson:** When navigating to a URL that relies on a dynamic custom scheme handler (`epub://`) for state changes, always explicitly check `if self._web.url() == url: self._web.reload() else: self._web.setUrl(url)`. `reload()` forcefully bypasses the URL optimization and triggers the custom scheme handler again.
+
+> [!TIP]
+> **BeautifulSoup vs Case-Sensitive XML Attributes**
+> **Symptom:** Regex replacements converting `viewbox` to `viewBox` inside EPUB HTML appeared to randomly fail and revert back to lowercase when rendered in the Chromium engine.
+> **Diagnosis:** `BeautifulSoup`, when initialized with the standard `html.parser`, forcefully lowercases all element attributes by design. If raw string regex manipulation (like fixing camelCase XML attributes) occurs *before* a BeautifulSoup pass (e.g., to inject translation IDs), BeautifulSoup will completely overwrite the case-sensitive fixes.
+> **Lesson:** Always run raw string HTML regex patches **after** all DOM-tree parsing libraries have completely finished executing, right before the HTML is sent to the browser engine.
