@@ -10,10 +10,10 @@ class EpubHtmlProcessor:
     def process(html: str, chapter_file: str, settings: dict) -> str:
         """
         Process the raw HTML from EPUB to be ready for QWebEngineView.
-        settings expects: 'page_width', 'font_family', 'font_size', 'line_height'
+        settings expects: 'page_width', 'font_family', 'font_size', 'line_height', 'dark_mode'
         """
         html = EpubHtmlProcessor._rewrite_asset_urls(html, chapter_file)
-        html = EpubHtmlProcessor._inject_dark_css(html)
+        html = EpubHtmlProcessor._inject_dark_css(html, settings.get('dark_mode', True))
         html = EpubHtmlProcessor._inject_reading_style(html, settings)
         
         # Inject JavaScript dependencies
@@ -100,8 +100,12 @@ class EpubHtmlProcessor:
         return html
 
     @staticmethod
-    def _inject_dark_css(html: str) -> str:
+    def _inject_dark_css(html: str, dark_mode: bool) -> str:
         """Inject dark mode CSS into the chapter HTML."""
+        if not dark_mode:
+            light_style = "<style id='light-reader-css'>\nbody { background-color: #FFFFFF !important; color: #000000 !important; }\na { color: #0000EE !important; }\n</style>"
+            return EpubHtmlProcessor._inject_head_content(html, light_style)
+            
         from app.dark_theme import READER_DARK_CSS # Keeping legacy READER_DARK_CSS since WebEngine doesn't support QSS variables easily
         dark_style = f"<style id='dark-reader-css'>\n/*<![CDATA[*/\n{READER_DARK_CSS}\n/*]]>*/\n</style>"
         return EpubHtmlProcessor._inject_head_content(html, dark_style)
@@ -120,6 +124,13 @@ class EpubHtmlProcessor:
                 {width_css}
                 margin: 0 auto !important;
                 padding: 30px 40px !important;
+            }}
+            img {{
+                max-width: 100% !important;
+                height: auto !important;
+                object-fit: contain !important;
+                display: block;
+                margin: 0 auto;
             }}
             p, div, span, li, td, th {{
                 font-size: inherit !important;

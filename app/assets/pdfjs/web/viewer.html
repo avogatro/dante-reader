@@ -34,6 +34,19 @@ See https://github.com/adobe-type-tools/cmap-resources
     <link rel="stylesheet" href="viewer.css">
 
   <script>
+    window.readerBridge = {
+      setPdfDarkMode: function(enabled) {
+        document.body.classList.toggle('dark-mode', enabled);
+      },
+      forceRepaint: function() {
+        setTimeout(() => {
+            if (document.body) {
+                document.body.style.transform = 'translateZ(0)';
+                setTimeout(() => document.body.style.transform = 'none', 50);
+            }
+        }, 50);
+      }
+    };
     document.addEventListener('webviewerloaded', function() {
       // Set the fallback zoom level to 'page-fit' without overriding user history.
       // We run this in-memory on every load because it acts as the "native default".

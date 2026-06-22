@@ -288,8 +288,8 @@ class ReaderWindow(BorderlessWindow):
         tb.lang_requested.connect(self._on_lang_requested)
         
         # Ribbon - View
-        rb.theme_btn.setChecked(self._prefs.get("pdf_dark_mode", False))
-        rb.theme_btn.toggled.connect(self._toggle_pdf_dark_mode)
+        rb.theme_btn.setChecked(self._prefs.get("dark_mode", True))
+        rb.theme_btn.toggled.connect(self._toggle_dark_mode)
         
         rb.pdf_mode_btn.setChecked(self._prefs.get("pdf_reading_mode", False))
         rb.pdf_mode_btn.toggled.connect(self._toggle_pdf_reading_mode)
@@ -467,8 +467,8 @@ class ReaderWindow(BorderlessWindow):
         self._reader.set_page_width(self._prefs.get("page_width", 750))
         if hasattr(self._reader, "set_pdf_reading_mode"):
             self._reader.set_pdf_reading_mode(self._prefs.get("pdf_reading_mode", False))
-        if hasattr(self._reader, "set_pdf_dark_mode"):
-            self._reader.set_pdf_dark_mode(self._prefs.get("pdf_dark_mode", False))
+        if hasattr(self._reader, "set_dark_mode"):
+            self._reader.set_dark_mode(self._prefs.get("dark_mode", True))
             
         # Note: OmniVoiceTTSEngine does not use rate, it uses speaker
         self._tts.set_voice(self._prefs.get("tts_voice", "jiang_voice"))
@@ -886,15 +886,23 @@ class ReaderWindow(BorderlessWindow):
         if hasattr(self._reader, "set_pdf_reading_mode"):
             self._reader.set_pdf_reading_mode(checked)
 
-    def _toggle_pdf_dark_mode(self, checked: bool) -> None:
-        self._prefs["pdf_dark_mode"] = checked
+    def _toggle_dark_mode(self, checked: bool) -> None:
+        self._prefs["dark_mode"] = checked
         save_prefs(self._prefs)
-        if hasattr(self._reader, "set_pdf_dark_mode"):
-            self._reader.set_pdf_dark_mode(checked)
+        if hasattr(self._reader, "set_dark_mode"):
+            self._reader.set_dark_mode(checked)
 
     def _toggle_epub_md_mode(self, checked: bool) -> None:
         self._prefs["epub_markdown_mode"] = checked
         save_prefs(self._prefs)
+        if hasattr(self._reader, "set_epub_markdown_mode"):
+            self._reader.set_epub_markdown_mode(checked)
+        
+        # If toggled on and we have an EPUB open, extract its markdown immediately
+        if checked and self._reader._book and not getattr(self._reader._book, 'is_dante', False) and not getattr(self._reader._book, 'is_pdf', False):
+            self._statusbar.showMessage(f"Extracting Markdown from EPUB: {self._reader._book.path}...")
+            self._ai.load_epub_markdown(self._reader._book.path)
+            
         if self._current_book and self._current_book.path.lower().endswith(".epub"):
             # Reload the book to apply the new engine
             self._open_book(self._current_book.path)

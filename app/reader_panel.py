@@ -86,7 +86,7 @@ class ReaderPanel(QWidget):
         self._scheme_handler = scheme_handler
         self._book: EpubBook | PdfBook | None = None
         self._current_chapter = 0
-        self._pdf_dark_mode = False
+        self._dark_mode = True
         self._first_load = False
         self._font_family = "Georgia"
         self._font_size = 18
@@ -200,7 +200,7 @@ class ReaderPanel(QWidget):
     def _on_page_load_finished(self, ok: bool) -> None:
         # If it's a PDF, apply the dark mode preference instantly upon load
         if self._book and getattr(self._book, 'is_pdf', False):
-            self.set_pdf_dark_mode(self._pdf_dark_mode)
+            self.set_dark_mode(getattr(self, '_dark_mode', True))
             
         if self._book and not getattr(self._book, 'is_pdf', False):
             self._table_layout_manager.update_table_layout()
@@ -342,7 +342,10 @@ class ReaderPanel(QWidget):
             # For EPUBs, get_chapter returns a Chapter object with a file_name.
             # We navigate to it via the scheme handler so relative assets load.
             url = QUrl(f"epub://content/{chapter.file_name}")
-            self._web.setUrl(url)
+            if self._web.url() == url:
+                self._web.reload()
+            else:
+                self._web.setUrl(url)
 
         # If we need to scroll to a specific anchor after load
         if scroll_to_anchor:
@@ -371,7 +374,8 @@ class ReaderPanel(QWidget):
                 "page_width": self._page_width,
                 "font_family": self._font_family,
                 "font_size": self._font_size,
-                "line_height": self._line_height
+                "line_height": self._line_height,
+                "dark_mode": self._dark_mode
             }
             html = EpubHtmlProcessor.process(html, file_path, settings)
             
@@ -637,12 +641,14 @@ class ReaderPanel(QWidget):
             target_page = self._current_chapter + 1
             _execute_switch(target_page)
 
-    def set_pdf_dark_mode(self, enabled: bool) -> None:
-        self._pdf_dark_mode = enabled
+    def set_dark_mode(self, enabled: bool) -> None:
+        self._dark_mode = enabled
         if self._book and getattr(self._book, 'is_pdf', False):
             # Tell PDF.js viewer to toggle the dark-mode class on the body
-            js = f"if (typeof window.readerBridge !== 'undefined') window.readerBridge.setPdfDarkMode({'true' if enabled else 'false'});"
+            js = f"if (typeof window.readerBridge !== 'undefined' && window.readerBridge.setPdfDarkMode) window.readerBridge.setPdfDarkMode({'true' if enabled else 'false'});"
             self._page.runJavaScript(js)
+        else:
+            self._reload_current()
 
     def reset_pdf_settings(self) -> None:
         if self._book and getattr(self._book, 'is_pdf', False):

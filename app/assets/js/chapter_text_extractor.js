@@ -1,6 +1,14 @@
 // Extracts text from the current selection or cursor to the end of the chapter, optionally restricting to a target class.
 window.extractChapterText = function(targetClass) {
     var sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
+        var div = document.createElement('div');
+        div.appendChild(sel.getRangeAt(0).cloneContents());
+        var unwanted = div.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
+        unwanted.forEach(function(el) { el.remove(); });
+        return div.textContent;
+    }
+    
     if (targetClass && document.querySelectorAll(targetClass).length === 0) {
         targetClass = '';
     }
