@@ -1,4 +1,3 @@
-import os
 import pytest
 from ebooklib import epub
 

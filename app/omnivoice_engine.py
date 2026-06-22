@@ -20,7 +20,6 @@ import subprocess
 import sys
 import atexit
 import requests
-import json
 import traceback
 
 class OmniVoiceTTSEngine(BaseTTSEngine):

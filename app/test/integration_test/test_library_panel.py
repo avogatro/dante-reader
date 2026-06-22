@@ -1,9 +1,5 @@
 import os
-import pytest
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import Qt
 from app.library_panel import LibraryPanel
-from app.epub_loader import EpubBook
 
 def test_library_panel_add_and_select_book(qtbot, dummy_epub_path):
     """
@@ -15,7 +11,6 @@ def test_library_panel_add_and_select_book(qtbot, dummy_epub_path):
 
     # Mock the directory scanning to look at our temporary directory
     import app.library_panel
-    import os
     original_get_epubs_dir = app.library_panel.get_epubs_dir
     app.library_panel.get_epubs_dir = lambda: os.path.dirname(dummy_epub_path)
     

@@ -1,0 +1,27 @@
+[tool.ruff]
+# Set the line length to 120 (your preferred standard)
+line-length = 120
+
+[tool.ruff.lint]
+# Select the rules we care about
+# E: pycodestyle errors (syntax/basic formatting)
+# F: Pyflakes (catches real bugs like unused variables, undefined names)
+# C90: mccabe (Cyclomatic complexity)
+select = ["E", "F", "C90"]
+
+# Ignore pedantic formatting rules
+ignore = [
+    "E501", # Ignore strict line length if it occasionally goes over
+    "E731", # Allow lambda expressions
+    "E402", # Allow module level import not at top of file (we use this intentionally sometimes)
+]
+
+[tool.ruff.lint.mccabe]
+# Flag functions that have too many branches/if-statements.
+# Default is 10. 15 allows for longer, linear functions without over-abstracting.
+max-complexity = 15
+
+[tool.radon]
+# Exclude tests and external files from radon calculation
+exclude = "test_*.py"
+cc_min = "B" # Only show functions with complexity B or worse (A is good)

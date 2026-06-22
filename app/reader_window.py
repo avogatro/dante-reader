@@ -268,14 +268,22 @@ class ReaderWindow(QMainWindow):
                 top = pos.y() < margin
                 bottom = pos.y() > self.height() - margin
                 
-                if left and top: return True, 13
-                if right and top: return True, 14
-                if left and bottom: return True, 16
-                if right and bottom: return True, 17
-                if left: return True, 10
-                if right: return True, 11
-                if top: return True, 12
-                if bottom: return True, 15
+                if left and top:
+                    return True, 13
+                if right and top:
+                    return True, 14
+                if left and bottom:
+                    return True, 16
+                if right and bottom:
+                    return True, 17
+                if left:
+                    return True, 10
+                if right:
+                    return True, 11
+                if top:
+                    return True, 12
+                if bottom:
+                    return True, 15
         except Exception:
             pass
         return False, 0
@@ -427,7 +435,7 @@ class ReaderWindow(QMainWindow):
         }
         create_exclusive_menu(
             rb.translate_btn,
-            [(l, f"{lang_names[l]} | {native_names[l]}") for l in ["Modern English", "Spanish", "French", "German", "Simplified Chinese", "Japanese"]],
+            [(lang, f"{lang_names[lang]} | {native_names[lang]}") for lang in ["Modern English", "Spanish", "French", "German", "Simplified Chinese", "Japanese"]],
             self._prefs.get("translation_lang", "Modern English"),
             self._set_translation_lang
         )

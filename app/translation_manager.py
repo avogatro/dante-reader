@@ -2,7 +2,6 @@ import os
 import json
 import hashlib
 from PyQt6.QtCore import QObject, QThread, pyqtSignal
-from app.translation_parser import extract_translation_blocks
 import re
 
 class TranslationWorker(QThread):

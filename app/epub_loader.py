@@ -6,7 +6,7 @@ Extracts spine (chapters), TOC, metadata, cover images, and internal assets.
 import os
 import re
 from typing import Optional
-from ebooklib import epub, ITEM_DOCUMENT, ITEM_IMAGE, ITEM_STYLE, ITEM_COVER
+from ebooklib import epub, ITEM_DOCUMENT, ITEM_IMAGE, ITEM_COVER
 
 
 class EpubChapter:

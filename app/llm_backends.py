@@ -53,7 +53,7 @@ class OllamaBackend(LLMBackend):
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", errors="replace")
             raise RuntimeError(f"Ollama HTTP {e.code}: {body}")
-        except urllib.error.URLError as e:
+        except urllib.error.URLError:
             raise RuntimeError(f"🔌 Cannot connect to Ollama.\n\nMake sure Ollama is running:\n  ollama serve\n\nExpected at: {self.base_url}")
 
 
@@ -80,7 +80,7 @@ class GeminiBackend(LLMBackend):
                     models.append(m.name)
             self._available_models = models
             return len(self._available_models) > 0
-        except Exception as e:
+        except Exception:
             return False
 
     def get_models(self) -> list[str]:

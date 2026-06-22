@@ -1,4 +1,3 @@
-import os
 from app.epub_loader import EpubBook
 
 def test_epub_book_loads_metadata(dummy_epub_path):

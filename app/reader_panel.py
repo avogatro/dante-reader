@@ -23,10 +23,6 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QComboBox,
     QLabel,
-    QMainWindow,
-    QTabWidget,
-    QPlainTextEdit,
-    QLineEdit,
     QCheckBox,
     QMessageBox,
 )
@@ -620,7 +616,7 @@ class ReaderPanel(QWidget):
                 data = json.loads(result_str)
                 text = data.get("text", "")
                 track = data.get("track", "")
-            except:
+            except Exception:
                 text = result_str
                 track = ""
                 
@@ -843,7 +839,7 @@ class ReaderPanel(QWidget):
         if chapter_idx != self._current_chapter:
             try:
                 self._page.loadFinished.disconnect(self._pending_scroll)
-            except:
+            except Exception:
                 pass
             self._pending_scroll = lambda ok: _do_scroll() if ok else None
             self._page.loadFinished.connect(self._pending_scroll)

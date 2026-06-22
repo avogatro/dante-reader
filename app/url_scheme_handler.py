@@ -7,7 +7,7 @@ import os
 import mimetypes
 import urllib.parse
 
-from PyQt6.QtCore import QByteArray, QBuffer, QIODevice, QUrl
+from PyQt6.QtCore import QByteArray, QBuffer, QIODevice
 from PyQt6.QtWebEngineCore import (
     QWebEngineUrlScheme,
     QWebEngineUrlSchemeHandler,

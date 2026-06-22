@@ -1,4 +1,3 @@
-import os
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QTabWidget, QMenu)
 from app.ui_utils import get_icon
 from app.style_manager import load_qss
@@ -225,9 +224,11 @@ class UserDataPanel(QWidget):
 
     def _on_bookmark_context_menu(self, pos):
         item = self._bookmarks_list.itemAt(pos)
-        if not item: return
+        if not item:
+            return
         b = item.data(Qt.ItemDataRole.UserRole)
-        if not b: return
+        if not b:
+            return
         
 
         menu = QMenu(self)
@@ -242,9 +243,11 @@ class UserDataPanel(QWidget):
 
     def _on_note_context_menu(self, pos):
         item = self._notes_list.itemAt(pos)
-        if not item: return
+        if not item:
+            return
         n = item.data(Qt.ItemDataRole.UserRole)
-        if not n: return
+        if not n:
+            return
 
         menu = QMenu(self)
         edit_action = menu.addAction(get_icon("pencil.svg"), self.tr("Edit"))

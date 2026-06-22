@@ -1,6 +1,5 @@
-import os
-from PyQt6.QtCore import Qt, pyqtSignal, QPoint, QSize
-from PyQt6.QtGui import QIcon, QAction, QPainter, QColor, QMouseEvent
+from PyQt6.QtCore import Qt, pyqtSignal, QSize
+from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import (
     QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
     QTabWidget, QComboBox, QLineEdit, QSizePolicy, QToolButton, QFrame, QMenu
@@ -254,9 +253,9 @@ class RibbonBar(QTabWidget):
         
     def _create_group(self, title: str) -> QFrame:
         g = QFrame()
-        l = QVBoxLayout(g)
-        l.setContentsMargins(0, 0, 15, 0)
-        l.setSpacing(0)
+        box_layout = QVBoxLayout(g)
+        box_layout.setContentsMargins(0, 0, 15, 0)
+        box_layout.setSpacing(0)
         
         content_wrapper = QFrame()
         content_wrapper.setObjectName("groupWrapper")
@@ -266,13 +265,13 @@ class RibbonBar(QTabWidget):
         content.setSpacing(0)
         g.content_layout = content
         
-        l.addWidget(content_wrapper)
-        l.addStretch()
+        box_layout.addWidget(content_wrapper)
+        box_layout.addStretch()
         
         lbl = QLabel(title)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setObjectName("groupTitle")
-        l.addWidget(lbl)
+        box_layout.addWidget(lbl)
         
         return g
 

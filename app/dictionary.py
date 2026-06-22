@@ -64,7 +64,8 @@ class DictionaryEngine:
             
             # Try candidates
             for cand in candidates:
-                if len(cand) < 2: continue
+                if len(cand) < 2: 
+                    continue
                 s = get_synsets(cand)
                 if s:
                     synsets = s

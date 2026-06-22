@@ -20,7 +20,6 @@ from PyQt6.QtWidgets import (
     QAbstractItemView,
     QLineEdit,
     QPushButton,
-    QMessageBox,
 )
 
 from .epub_loader import EpubBook

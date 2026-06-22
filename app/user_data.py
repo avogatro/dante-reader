@@ -2,7 +2,7 @@ import os
 import json
 import uuid
 from datetime import datetime
-from typing import Dict, List, Any, Optional
+from typing import Dict, List
 
 class UserDataManager:
     def __init__(self, book_path: str):

@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import app.qwen_engine as qwen_engine
 
 @pytest.fixture

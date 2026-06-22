@@ -4,7 +4,6 @@ import os
 
 # We no longer strictly need READER_DARK_CSS here as it's part of StyleManager,
 # but for WebView content, it might be easier to inject the QSS. Let's load the QSS.
-from app.style_manager import load_qss
 
 class EpubHtmlProcessor:
     @staticmethod

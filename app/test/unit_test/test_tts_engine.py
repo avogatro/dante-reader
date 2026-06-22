@@ -1,4 +1,3 @@
-import pytest
 from app.tts_engine import split_sentences, strip_footnote_markers
 
 def test_strip_footnote_markers():

@@ -1,4 +1,3 @@
-import pytest
 from unittest.mock import patch, MagicMock
 from app.llm_backends import OllamaBackend, GeminiBackend
 

@@ -1,5 +1,4 @@
 import os
-import base64
 import pymupdf4llm
 import markdown
 import re

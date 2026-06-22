@@ -1,5 +1,4 @@
-import json
-from bs4 import BeautifulSoup, NavigableString, Comment, Doctype
+from bs4 import BeautifulSoup, Comment, Doctype
 
 _INLINE_TAGS = {'b', 'i', 'strong', 'em', 'span', 'a', 'sup', 'sub', 'br', 'u'}
 _BLOCK_TAGS = {'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li', 'td', 'th', 'blockquote', 'figcaption'}

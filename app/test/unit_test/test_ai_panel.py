@@ -1,5 +1,3 @@
-import pytest
-from PyQt6.QtWidgets import QApplication
 from app.ai_panel import AiPanel
 
 def test_ai_panel_format_response(qtbot):

@@ -6,10 +6,9 @@ Uses sounddevice to stream live audio directly from the neural network.
 import logging
 import threading
 import queue
-from typing import Optional, Iterator
+from typing import Optional
 import numpy as np
 import sounddevice as sd
-from PyQt6.QtCore import QObject
 from app.interfaces import BaseTTSEngine
 
 from .tts_engine import split_sentences, strip_footnote_markers
