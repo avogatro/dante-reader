@@ -4,7 +4,6 @@ researching selected text from the EPUB reader.
 Supports: Ollama (local, free) and Gemini (cloud, API key required).
 """
 
-import markdown
 import threading
 
 from app.ui_utils import get_icon, get_icon_path
@@ -21,7 +20,6 @@ from PyQt6.QtWidgets import (
     QLineEdit,
     QTextBrowser,
     QComboBox,
-    QSizePolicy,
 )
 
 from app.llm_backends import OllamaBackend, GeminiBackend
@@ -151,17 +149,19 @@ class AiPanel(QWidget):
         self._status_label.setObjectName("statusLabel")
         settings_layout.addWidget(self._status_label)
 
-        # ── Selected Text Preview ──
+        # Selected Text Preview
         self._selection_label = QTextEdit(self.tr("No text selected"))
         self._selection_label.setReadOnly(True)
         self._selection_label.setMinimumHeight(40)
-        self._selection_label.setMaximumHeight(200)
+        self._selection_label.setMaximumHeight(80)
         self._selection_label.setObjectName("selectionPreview")
         self._selection_label.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self._selection_label.customContextMenuRequested.connect(lambda pos: self._show_text_context_menu(pos, self._selection_label))
         settings_layout.addWidget(self._selection_label)
 
         layout.addWidget(self._settings_container)
+        self._settings_container.setVisible(False)
+        self._btn_toggle_settings.setIcon(get_icon("menu.svg"))
 
         # ── Quick Action Buttons ──
         btn_row = QHBoxLayout()

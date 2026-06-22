@@ -9,10 +9,7 @@ qwebchannel.js loading issues with custom URL schemes.
 """
 
 import re
-import posixpath
-from bs4 import BeautifulSoup
 from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QTimer
-from PyQt6.QtGui import QFont, QAction
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -20,25 +17,19 @@ from PyQt6.QtWidgets import (
     QPushButton,
     QComboBox,
     QLabel,
-    QMenu,
     QMainWindow,
     QTabWidget,
     QPlainTextEdit,
-    QMessageBox,
     QLineEdit,
 )
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import (
-    QWebEnginePage,
-    QWebEngineProfile,
     QWebEngineNavigationRequest,
 )
 
-from .dark_theme import READER_DARK_CSS
 from .epub_loader import EpubBook
 from .pdf_book import PdfBook
-from .user_data import UserDataManager
-from app.ui_utils import get_icon, get_icon_path
+from app.ui_utils import get_icon_path
 
 class SourceViewerWindow(QMainWindow):
     """
@@ -164,60 +155,6 @@ class ReaderPanel(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-
-        # ── Navigation Bar ──
-        nav_bar = QHBoxLayout()
-        nav_bar.setContentsMargins(12, 6, 12, 6)
-        nav_bar.setSpacing(8)
-
-        self._btn_toggle_lib = QPushButton(self.tr("📚 Library"))
-        self._btn_toggle_lib.clicked.connect(self.library_toggle_requested.emit)
-        nav_bar.addWidget(self._btn_toggle_lib)
-
-        nav_bar.addSpacing(10)
-        self._btn_prev = QPushButton(self.tr("◀ Prev"))
-        self._btn_prev.setFixedWidth(80)
-        self._btn_prev.clicked.connect(self._prev_chapter)
-        nav_bar.addWidget(self._btn_prev)
-
-        self._btn_next = QPushButton(self.tr("Next ▶"))
-        self._btn_next.setFixedWidth(80)
-        self._btn_next.clicked.connect(self._next_chapter)
-        nav_bar.addWidget(self._btn_next)
-
-        self._chapter_label = QLabel("")
-        self._chapter_label.setObjectName("chapterLabel")
-        nav_bar.addWidget(self._chapter_label)
-
-        self._chapter_combo = QComboBox()
-        self._chapter_combo.setMinimumWidth(250)
-        self._chapter_combo.setMaximumWidth(500)
-        self._chapter_combo.currentIndexChanged.connect(self._on_chapter_selected)
-        nav_bar.addWidget(self._chapter_combo, 1)
-
-        self._search_input = QLineEdit()
-        self._search_input.setPlaceholderText(self.tr("Search book..."))
-        self._search_input.setMinimumWidth(250)
-        self._search_input.returnPressed.connect(
-            lambda: self.search_requested.emit(self._search_input.text().strip()) if self._search_input.text().strip() else None
-        )
-        nav_bar.addWidget(self._search_input,1)
-        nav_bar.addStretch()
-        self._btn_toggle_ai = QPushButton(self.tr("✨ AI"))
-        self._btn_toggle_ai.clicked.connect(self.ai_toggle_requested.emit)
-        nav_bar.addWidget(self._btn_toggle_ai)
-        
-        self._btn_focus = QPushButton(self.tr("📖 Focus"))
-        self._btn_focus.setToolTip(self.tr("Toggle both sidebars for distraction-free reading"))
-        self._btn_focus.clicked.connect(self.focus_toggle_requested.emit)
-        nav_bar.addWidget(self._btn_focus)
-
-        nav_widget = QWidget()
-        nav_widget.setObjectName("topNavBar")
-        nav_widget.setLayout(nav_bar)
-        nav_widget.setObjectName("topNavBar")
-        nav_widget.hide()
-        layout.addWidget(nav_widget)
 
         # ── Table Translation / Dante Controls ──
         self._table_nav_bar = QHBoxLayout()
@@ -399,12 +336,6 @@ class ReaderPanel(QWidget):
         
         # If it's a PDF AND we are NOT in reading mode, hide nav and route to PDF.js
         if is_pdf and not self._pdf_reading_mode:
-            self._btn_prev.hide()
-            self._btn_next.hide()
-            self._chapter_combo.hide()
-            self._chapter_label.hide()
-            self._search_input.hide()
-            
             import urllib.parse
             # URL encode the local absolute path so it survives the ?file= query parameter
             encoded_path = urllib.parse.quote(book.path)
@@ -421,12 +352,6 @@ class ReaderPanel(QWidget):
         if is_pdf:
             self._book.set_reading_mode(True)
             
-        self._btn_prev.show()
-        self._btn_next.show()
-        self._chapter_combo.show()
-        self._chapter_label.show()
-        self._search_input.show()
-        
         # Clear existing track toggles
         for i in reversed(range(self._track_toggles_layout.count())): 
             widget = self._track_toggles_layout.itemAt(i).widget()
@@ -499,17 +424,17 @@ class ReaderPanel(QWidget):
                 self._fname_to_chapter[basename] = ch.index
 
         # Populate chapter combo
-        self._chapter_combo.blockSignals(True)
-        self._chapter_combo.clear()
-        toc = book.get_toc_entries()
-        if toc:
-            for title, idx in toc:
-                self._chapter_combo.addItem(title, idx)
-        else:
-            if hasattr(book, 'chapters'):
-                for ch in book.chapters:
-                    self._chapter_combo.addItem(ch.title, ch.index)
-        self._chapter_combo.blockSignals(False)
+        # self._chapter_combo.blockSignals(True)
+        # self._chapter_combo.clear()
+        # toc = book.get_toc_entries()
+        # if toc:
+        #     for title, idx in toc:
+        #         self._chapter_combo.addItem(title, idx)
+        # else:
+        #     if hasattr(book, 'chapters'):
+        #         for ch in book.chapters:
+        #             self._chapter_combo.addItem(ch.title, ch.index)
+        # self._chapter_combo.blockSignals(False)
 
         if is_pdf and self._pdf_reading_mode:
             self._load_chapter(target_page - 1)
@@ -552,7 +477,7 @@ class ReaderPanel(QWidget):
             QTimer.singleShot(300, lambda: self._scroll_to_anchor(scroll_to_anchor))
 
         # Update nav controls
-        self._update_nav_state()
+        #self._update_nav_state()
         self.chapter_changed.emit(index)
 
     def _scroll_to_anchor(self, anchor_id: str) -> None:
@@ -614,25 +539,25 @@ class ReaderPanel(QWidget):
         self._last_rendered_html = xml_decl + html
         return self._last_rendered_html
 
-    def _update_nav_state(self) -> None:
-        """Update navigation buttons and label."""
-        if not self._book:
-            return
+    # def _update_nav_state(self) -> None:
+    #     """Update navigation buttons and label."""
+    #     if not self._book:
+    #         return
 
-        count = self._book.get_chapter_count()
-        self._btn_prev.setEnabled(self._current_chapter > 0)
-        self._btn_next.setEnabled(self._current_chapter < count - 1)
-        self._chapter_label.setText(
-            f"  {self._current_chapter + 1} / {count}"
-        )
+    #     count = self._book.get_chapter_count()
+    #     self._btn_prev.setEnabled(self._current_chapter > 0)
+    #     self._btn_next.setEnabled(self._current_chapter < count - 1)
+    #     self._chapter_label.setText(
+    #         f"  {self._current_chapter + 1} / {count}"
+    #     )
 
-        # Sync combo box
-        self._chapter_combo.blockSignals(True)
-        for i in range(self._chapter_combo.count()):
-            if self._chapter_combo.itemData(i) == self._current_chapter:
-                self._chapter_combo.setCurrentIndex(i)
-                break
-        self._chapter_combo.blockSignals(False)
+    #     # Sync combo box
+    #     self._chapter_combo.blockSignals(True)
+    #     for i in range(self._chapter_combo.count()):
+    #         if self._chapter_combo.itemData(i) == self._current_chapter:
+    #             self._chapter_combo.setCurrentIndex(i)
+    #             break
+    #     self._chapter_combo.blockSignals(False)
 
     # ══════════════════════════════════════
     # Navigation Request Handler (signal-based)
@@ -843,12 +768,6 @@ class ReaderPanel(QWidget):
     def _next_chapter(self) -> None:
         if self._book and self._current_chapter < self._book.get_chapter_count() - 1:
             self._load_chapter(self._current_chapter + 1)
-
-    def _on_chapter_selected(self, combo_index: int) -> None:
-        chapter_index = self._chapter_combo.itemData(combo_index)
-        if chapter_index is not None and chapter_index != self._current_chapter:
-            self._load_chapter(chapter_index)
-
     def go_to_chapter(self, index: int) -> None:
         """Public method to navigate to a specific chapter."""
         self._load_chapter(index)

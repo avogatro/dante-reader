@@ -1,22 +1,18 @@
-import sys
 """
 Reader Window — Main application window assembling all panels.
 Three-column layout: Library | Reader | Footnote/AI sidebar.
 Includes menus for View, TTS, and AI controls.
 """
 
-from PyQt6.QtCore import Qt, QSize, QTimer, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QFont, QAction, QActionGroup
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QMainWindow,
     QSplitter,
     QWidget,
     QVBoxLayout,
     QTabWidget,
-    QMenuBar,
     QStatusBar,
-    QSlider,
-    QWidgetAction,
     QLabel,
     QHBoxLayout,
     QMessageBox,
@@ -249,9 +245,7 @@ class ReaderWindow(QMainWindow):
 
 
     def nativeEvent(self, eventType, message):
-        import ctypes
         from ctypes.wintypes import MSG
-        from PyQt6.QtCore import QPoint
         try:
             msg = MSG.from_address(int(message))
             if msg.message == 0x0083: # WM_NCCALCSIZE
@@ -495,14 +489,8 @@ class ReaderWindow(QMainWindow):
         translate_page_shortcut.triggered.connect(lambda: self._reader._translate_visible_page())
         self.addAction(translate_page_shortcut)
         
-        # Reader → TTS (read selection)
+        # Reader -> TTS (read selection)
         self._reader.read_selection_requested.connect(self._tts_read_selection)
-
-        # Reader → Window toggle
-        self._reader.library_toggle_requested.connect(self._toggle_library)
-        self._reader.ai_toggle_requested.connect(self._toggle_ai_panel)
-        self._reader.focus_toggle_requested.connect(self._toggle_focus_mode)
-        self._reader.search_requested.connect(self._on_search_requested)
         
         # Search panel
         self._search_panel.result_selected.connect(self._on_search_result_selected)
@@ -1172,7 +1160,6 @@ class ReaderWindow(QMainWindow):
 
     def _on_translation_requested(self, needed_blocks: list) -> None:
         from app.translation_manager import TranslationManager
-        from app.llm_backends import get_all_backends
         
         backend_name = self._ai._backend_combo.currentText()
         model_name = self._ai._model_combo.currentText()
