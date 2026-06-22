@@ -8,8 +8,14 @@ C++ level — far more reliable than injected JS which can fail due to
 qwebchannel.js loading issues with custom URL schemes.
 """
 
+import os
 import re
-from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QTimer
+import json
+import traceback
+import urllib.parse
+import webbrowser
+
+from PyQt6.QtCore import Qt, pyqtSignal, QUrl, QTimer, QUrlQuery
 from PyQt6.QtWidgets import (
     QWidget,
     QVBoxLayout,
@@ -21,58 +27,25 @@ from PyQt6.QtWidgets import (
     QTabWidget,
     QPlainTextEdit,
     QLineEdit,
+    QCheckBox,
+    QMessageBox,
 )
+from PyQt6.QtGui import QAction, QKeySequence
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import (
     QWebEngineNavigationRequest,
+    QWebEngineProfile,
+    QWebEnginePage,
 )
 
 from .epub_loader import EpubBook
 from .pdf_book import PdfBook
 from app.ui_utils import get_icon_path
-
-class SourceViewerWindow(QMainWindow):
-    """
-    Window that displays the page source (rendered HTML, original EPUB HTML,
-    and CSS stylesheets) in separate tabs.
-    """
-
-    def __init__(self, rendered_html: str, original_html: str,
-                 css_sheets: list[tuple[str, str]], chapter_title: str,
-                 parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(self.tr("Source — {chapter}").format(chapter=chapter_title))
-        self.resize(900, 700)
-
-        tabs = QTabWidget()
-        self.setCentralWidget(tabs)
-
-        # Tab 1: Rendered HTML (with injected styles and bridge)
-        rendered_edit = self._make_editor(rendered_html, "html")
-        tabs.addTab(rendered_edit, self.tr("Rendered HTML"))
-
-        # Tab 2: Original EPUB HTML (before our injections)
-        original_edit = self._make_editor(original_html, "html")
-        tabs.addTab(original_edit, self.tr("Original EPUB HTML"))
-
-        # Tab 3+: CSS stylesheets from the EPUB
-        if css_sheets:
-            for name, css_content in css_sheets:
-                css_edit = self._make_editor(css_content, "css")
-                short_name = name.rsplit("/", 1)[-1] if "/" in name else name
-                tabs.addTab(css_edit, self.tr("CSS: {name}").format(name=short_name))
-        else:
-            no_css = self._make_editor(self.tr("/* No CSS stylesheets found in this EPUB */"), "css")
-            tabs.addTab(no_css, self.tr("CSS"))
-
-    def _make_editor(self, content: str, lang: str) -> QPlainTextEdit:
-        """Create a read-only code editor widget."""
-        editor = QPlainTextEdit()
-        editor.setPlainText(content)
-        editor.setReadOnly(True)
-        editor.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
-        editor.setObjectName("editorInput")
-        return editor
+from app.config import get_max_width_px
+from app.services.html_processor import EpubHtmlProcessor
+from app.translation_parser import extract_translation_blocks, inject_translation_ids, inject_translated_text
+from app.reader_context_menu import ReaderContextMenu
+from app.source_viewer import SourceViewerWindow
 
 
 class ReaderPanel(QWidget):
@@ -130,9 +103,6 @@ class ReaderPanel(QWidget):
         self._setup_ui()
         
         # Register global shortcuts for actions not in the main window menu
-        from PyQt6.QtGui import QAction, QKeySequence
-        from PyQt6.QtCore import Qt
-        
         shortcuts = [
             ("Ctrl+U", self._open_source_viewer),
             ("F5", self.play_chapter_requested.emit),
@@ -189,8 +159,6 @@ class ReaderPanel(QWidget):
         layout.addWidget(self._table_controls_widget)
 
         # ── Web View ──
-        from PyQt6.QtWebEngineCore import QWebEngineProfile, QWebEnginePage
-
         self._profile = QWebEngineProfile("ReaderProfile", self)
         self._profile.installUrlSchemeHandler(b"epub", self._scheme_handler)
 
@@ -212,7 +180,6 @@ class ReaderPanel(QWidget):
     def show_placeholder(self) -> None:
         """Display the app logo and name when no book is loaded."""
         icon_path = get_icon_path("logo_mountain.svg")
-        import os
         template_path = os.path.join(os.path.dirname(__file__), "assets", "html", "placeholder.html")
         try:
             with open(template_path, "r", encoding="utf-8") as f:
@@ -243,14 +210,11 @@ class ReaderPanel(QWidget):
             css_lines.append(f".track-original {{ display: {'block' if show_orig else 'none'} !important; flex: 1; padding: {'0 15px' if show_orig else '0'} !important; }}")
             css_lines.append(f".track-translation {{ display: {'block' if show_trans else 'none'} !important; flex: 1; padding: {'0 15px' if show_trans else '0'} !important; }}")
         
-        # Ensure AI translation text is always selectable/highlightable by TTS
-        # css_lines.append(".track-ai_translation, .track-ai_translation * { user-select: text !important; pointer-events: auto !important; }")
         
         return " ".join(css_lines)
 
     def _update_table_layout(self):
         css_str = self._get_table_layout_css()
-        import json
         safe_css = json.dumps(css_str)
         js = f"if (typeof window.updateTableLayoutCss === 'function') {{ window.updateTableLayoutCss({safe_css}); }}"
         self._page.runJavaScript(js)
@@ -268,7 +232,6 @@ class ReaderPanel(QWidget):
         if not visible_ids:
             return
             
-        from app.translation_parser import extract_translation_blocks
         all_blocks = extract_translation_blocks(self._last_rendered_html)
         needed_blocks = [b for b in all_blocks if b["id"] in visible_ids]
         
@@ -284,7 +247,6 @@ class ReaderPanel(QWidget):
             self._btn_translate_page.setEnabled(True)
         if index == self._current_chapter and self._translation_manager:
             translations = self._translation_manager.get_chapter(index)
-            import json
             is_dante = getattr(self._book, 'is_dante', False)
             safe_trans = json.dumps(translations)
             safe_is_dante = str(is_dante).lower()
@@ -295,7 +257,6 @@ class ReaderPanel(QWidget):
         if hasattr(self, "_btn_translate_page"):
             self._btn_translate_page.setText(self.tr("AI: Translate Page"))
             self._btn_translate_page.setEnabled(True)
-        from PyQt6.QtWidgets import QMessageBox
         QMessageBox.critical(self, self.tr("Translation Error"), self.tr("Failed to translate chapter {index}:\n\n{error}").format(index=index, error=error_msg))
 
     def _on_page_load_finished(self, ok: bool) -> None:
@@ -311,18 +272,7 @@ class ReaderPanel(QWidget):
             self._first_load = False
             
             QTimer.singleShot(50, self._web.update)
-            js = """
-            setTimeout(() => {
-                window.scrollTo(0, 1); 
-                window.scrollTo(0, 0);
-                // Force a hardware compositor layer refresh
-                if (document.body) {
-                    document.body.style.transform = 'translateZ(0)';
-                    setTimeout(() => document.body.style.transform = 'none', 50);
-                }
-            }, 50);
-            """
-            self._page.runJavaScript(js)
+            self._page.runJavaScript("if (typeof window.readerBridge !== 'undefined') window.readerBridge.forceRepaint();")
 
     # ── Book Loading ──
 
@@ -336,7 +286,6 @@ class ReaderPanel(QWidget):
         
         # If it's a PDF AND we are NOT in reading mode, hide nav and route to PDF.js
         if is_pdf and not self._pdf_reading_mode:
-            import urllib.parse
             # URL encode the local absolute path so it survives the ?file= query parameter
             encoded_path = urllib.parse.quote(book.path)
             
@@ -359,10 +308,7 @@ class ReaderPanel(QWidget):
                 widget.setParent(None)
         self._dynamic_checkboxes.clear()
         
-        from PyQt6.QtWidgets import QCheckBox
-        
         if getattr(book, 'is_dante', False):
-            from app.config import get_max_width_px
             self._page_width = get_max_width_px()
             
             tracks = getattr(book, 'metadata', {}).get('tracks', {})
@@ -423,18 +369,6 @@ class ReaderPanel(QWidget):
                 basename = ch.file_name.rsplit("/", 1)[-1]
                 self._fname_to_chapter[basename] = ch.index
 
-        # Populate chapter combo
-        # self._chapter_combo.blockSignals(True)
-        # self._chapter_combo.clear()
-        # toc = book.get_toc_entries()
-        # if toc:
-        #     for title, idx in toc:
-        #         self._chapter_combo.addItem(title, idx)
-        # else:
-        #     if hasattr(book, 'chapters'):
-        #         for ch in book.chapters:
-        #             self._chapter_combo.addItem(ch.title, ch.index)
-        # self._chapter_combo.blockSignals(False)
 
         if is_pdf and self._pdf_reading_mode:
             self._load_chapter(target_page - 1)
@@ -477,18 +411,11 @@ class ReaderPanel(QWidget):
             QTimer.singleShot(300, lambda: self._scroll_to_anchor(scroll_to_anchor))
 
         # Update nav controls
-        #self._update_nav_state()
         self.chapter_changed.emit(index)
 
     def _scroll_to_anchor(self, anchor_id: str) -> None:
         """Scroll the web view to a specific anchor element."""
-        js = f"""
-        (function() {{
-            var el = document.getElementById('{anchor_id}');
-            if (el) {{ el.scrollIntoView({{behavior: 'smooth', block: 'start'}}); }}
-        }})();
-        """
-        self._page.runJavaScript(js)
+        self._page.runJavaScript(f"if (typeof window.readerBridge !== 'undefined') window.readerBridge.scrollToAnchor('{anchor_id}');")
 
     def _process_html(self, html: str, file_path: str) -> str:
         """Callback from EpubSchemeHandler: injects CSS dynamically into HTML."""
@@ -502,7 +429,6 @@ class ReaderPanel(QWidget):
             html = html[match.end():]
 
         try:
-            from app.services.html_processor import EpubHtmlProcessor
             settings = {
                 "page_width": self._page_width,
                 "font_family": self._font_family,
@@ -515,7 +441,6 @@ class ReaderPanel(QWidget):
             layout_css = f"<style id='table-column-toggles'>{self._get_table_layout_css()}</style>"
             html = EpubHtmlProcessor._inject_head_content(html, layout_css)
         except Exception as e:
-            import traceback
             traceback.print_exc()
             print("CRASH IN HTML PROCESSOR:", e)
         
@@ -523,41 +448,15 @@ class ReaderPanel(QWidget):
         
         # Inject translation IDs for EPUBs
         if not getattr(self._book, 'is_dante', False):
-            from app.translation_parser import inject_translation_ids
             html = inject_translation_ids(html)
             
         # If we already have translations for this chapter, inject them right away (for both EPUB and Dante)
         if self._translation_manager and self._translation_manager.has_chapter(self._current_chapter):
-            from app.translation_parser import inject_translated_text
             trans_dict = self._translation_manager.get_chapter(self._current_chapter)
             html = inject_translated_text(html, trans_dict)
                 
-        # Fix SVG attribute casing AFTER all BeautifulSoup manipulations have finished!
-        html = re.sub(r'\bviewbox\s*=', 'viewBox=', html, flags=re.IGNORECASE)
-        html = re.sub(r'\bpreserveaspectratio\s*=', 'preserveAspectRatio=', html, flags=re.IGNORECASE)
-                
         self._last_rendered_html = xml_decl + html
         return self._last_rendered_html
-
-    # def _update_nav_state(self) -> None:
-    #     """Update navigation buttons and label."""
-    #     if not self._book:
-    #         return
-
-    #     count = self._book.get_chapter_count()
-    #     self._btn_prev.setEnabled(self._current_chapter > 0)
-    #     self._btn_next.setEnabled(self._current_chapter < count - 1)
-    #     self._chapter_label.setText(
-    #         f"  {self._current_chapter + 1} / {count}"
-    #     )
-
-    #     # Sync combo box
-    #     self._chapter_combo.blockSignals(True)
-    #     for i in range(self._chapter_combo.count()):
-    #         if self._chapter_combo.itemData(i) == self._current_chapter:
-    #             self._chapter_combo.setCurrentIndex(i)
-    #             break
-    #     self._chapter_combo.blockSignals(False)
 
     # ══════════════════════════════════════
     # Navigation Request Handler (signal-based)
@@ -575,7 +474,6 @@ class ReaderPanel(QWidget):
             if path == "next-chapter":
                 QTimer.singleShot(0, self._next_chapter)
             elif path == "media":
-                from PyQt6.QtCore import QUrlQuery
                 query = QUrlQuery(url.query())
                 media_type = query.queryItemValue("type")
                 media_id = query.queryItemValue("id")
@@ -587,8 +485,6 @@ class ReaderPanel(QWidget):
                 elif media_type == "foot":
                     QTimer.singleShot(0, lambda: self._handle_footnote_click(media_id))
             elif path == "dict":
-                from PyQt6.QtCore import QUrlQuery
-                import urllib.parse
                 query = QUrlQuery(url.query())
                 word = query.queryItemValue("word")
                 if word:
@@ -614,7 +510,6 @@ class ReaderPanel(QWidget):
             # ── Case 1: External HTTP(S) links ──
             if scheme in ("http", "https"):
                 request.reject()
-                import webbrowser
                 url_str = url.toString()
                 QTimer.singleShot(0, lambda: webbrowser.open(url_str))
                 return
@@ -662,7 +557,6 @@ class ReaderPanel(QWidget):
         video_data = self._book.videos.get(media_id)
         if not video_data:
             return
-        import webbrowser
         url = video_data.get("url", "")
         start_time = video_data.get("start_timestamp", 0)
         if url:
@@ -722,7 +616,6 @@ class ReaderPanel(QWidget):
             if not result_str:
                 return
             
-            import json
             try:
                 data = json.loads(result_str)
                 text = data.get("text", "")
@@ -804,23 +697,12 @@ class ReaderPanel(QWidget):
         self._pdf_dark_mode = enabled
         if self._book and getattr(self._book, 'is_pdf', False):
             # Tell PDF.js viewer to toggle the dark-mode class on the body
-            js = f"document.body.classList.toggle('dark-mode', {'true' if enabled else 'false'});"
+            js = f"if (typeof window.readerBridge !== 'undefined') window.readerBridge.setPdfDarkMode({'true' if enabled else 'false'});"
             self._page.runJavaScript(js)
 
     def reset_pdf_settings(self) -> None:
         if self._book and getattr(self._book, 'is_pdf', False):
-            js = """
-            localStorage.removeItem('pdfjs.preferences');
-            localStorage.removeItem('pdfjs.history');
-            try {
-                PDFViewerApplicationOptions.set('defaultZoomValue', 'page-fit');
-                PDFViewerApplicationOptions.set('spreadModeOnLoad', 0);
-            } catch (e) {}
-            // Prevent PDF.js from rewriting history during the unload event triggered by reload
-            localStorage.setItem = function() {};
-            location.reload();
-            """
-            self._page.runJavaScript(js)
+            self._page.runJavaScript("if (typeof window.readerBridge !== 'undefined') window.readerBridge.resetPdfSettings();")
 
     def set_font_family(self, family: str) -> None:
         self._font_family = family
@@ -837,9 +719,6 @@ class ReaderPanel(QWidget):
     def set_page_width(self, width: int) -> None:
         self._page_width = width
         self._reload_current()
-
-    def set_tts_target(self, target: str) -> None:
-        self._tts_target = target
 
     def _get_active_page(self):
         return self._page
@@ -867,7 +746,6 @@ class ReaderPanel(QWidget):
                 target_selector = ".track-original"
             else:
                 target_selector = ".track-translation"
-        import json
         safe_target = json.dumps(target_selector) if target_selector else "''"
         js = f"if (typeof window.extractChapterText === 'function') {{ window.extractChapterText({safe_target}); }} else {{ ''; }}"
         self._get_active_page().runJavaScript(js, callback)
@@ -876,7 +754,6 @@ class ReaderPanel(QWidget):
 
     def highlight_sentence(self, text: str) -> None:
         """Find and highlight the given sentence in the DOM while clearing previous highlights."""
-        import json
         safe_text = json.dumps(text) if text else "''"
         
         target_key = self._table_tts_combo.currentData()
@@ -900,7 +777,6 @@ class ReaderPanel(QWidget):
 
     def _show_context_menu(self, pos) -> None:
         """Show custom right-click context menu with View Source option."""
-        from app.reader_context_menu import ReaderContextMenu
         ReaderContextMenu.show_menu(self, pos)
 
     def _open_source_viewer(self) -> None:
@@ -946,8 +822,7 @@ class ReaderPanel(QWidget):
         self._get_active_page().toHtml(on_html)
 
     def _trigger_add_note(self, selected_text: str):
-        js = "var h = document.documentElement.scrollHeight - window.innerHeight; h = h > 0 ? h : 1; window.scrollY / h;"
-        self._get_active_page().runJavaScript(js, lambda pct: self.note_requested.emit(self.get_current_chapter_index(), float(pct or 0.0), selected_text))
+        self._get_active_page().runJavaScript("if (typeof window.readerBridge !== 'undefined') { window.readerBridge.getScrollPercent(); } else { 0.0; }", lambda pct: self.note_requested.emit(self.get_current_chapter_index(), float(pct or 0.0), selected_text))
 
     def _trigger_add_note_from_shortcut(self):
         # First get selected text, then trigger add note
@@ -957,13 +832,11 @@ class ReaderPanel(QWidget):
         self._get_active_page().runJavaScript("window.getSelection().toString();", self.read_selection_requested.emit)
 
     def _trigger_add_bookmark(self):
-        js = "var h = document.documentElement.scrollHeight - window.innerHeight; h = h > 0 ? h : 1; window.scrollY / h;"
-        self._get_active_page().runJavaScript(js, lambda pct: self.bookmark_requested.emit(self.get_current_chapter_index(), float(pct or 0.0)))
+        self._get_active_page().runJavaScript("if (typeof window.readerBridge !== 'undefined') { window.readerBridge.getScrollPercent(); } else { 0.0; }", lambda pct: self.bookmark_requested.emit(self.get_current_chapter_index(), float(pct or 0.0)))
 
     def navigate_to_percent(self, chapter_idx: int, pct: float, text_to_highlight: str = "") -> None:
         def _do_scroll():
-            js = f"var h = document.documentElement.scrollHeight - window.innerHeight; h = h > 0 ? h : 1; window.scrollTo(0, {pct} * h);"
-            self._get_active_page().runJavaScript(js)
+            self._get_active_page().runJavaScript(f"if (typeof window.readerBridge !== 'undefined') window.readerBridge.scrollToPercent({pct});")
             if text_to_highlight:
                 self.highlight_sentence(text_to_highlight)
 

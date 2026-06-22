@@ -295,3 +295,42 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
 > **Symptom:** Scanning hundreds of EPUBs in the background `QThread` caused the main UI to stutter violently.
 > **Diagnosis:** Pure Python file operations (`os.walk`) and metadata parsing hold the Global Interpreter Lock (GIL). Heavy Python loops inside a `QThread` will completely starve the Main Thread's event loop.
 > **Lesson:** Always insert explicit `time.sleep(0.01)` calls inside heavy background Python loops in PyQt to forcefully yield the GIL, restoring buttery-smooth 60FPS UI animations.
+
+---
+
+## 🧹 Refactoring & TTS Server Robustness (Phase 10)
+
+### 🏆 Phase 10 Achievements
+
+1. **TTS Server Orphan Process Leak Fix**
+   - Diagnosed a critical production bug where the OmniVoice TTS subprocess architecture (`uvicorn` FastAPI server) was leaking orphaned processes on every app restart. The `atexit` cleanup handler was not reliably firing on crash/force-close, causing **11+ zombie Python processes** to accumulate, all competing for GPU VRAM and causing 60-second HTTP timeouts.
+   - Implemented `_kill_stale_servers()`: a startup routine that uses PowerShell `Get-CimInstance`/`Stop-Process` to scan and kill any orphaned `uvicorn app.tts_server.server` processes before launching a new one.
+   - Added `_wait_for_server()`: a readiness polling loop that checks `GET /status` every 2 seconds (up to 5 minutes) before sending the first TTS generation request, preventing timeouts during model loading.
+   - Built a robust `cleanup()` lifecycle method (terminate → wait → kill fallback) wired into both `atexit` and `QMainWindow.closeEvent`.
+
+2. **Debug-Mode Server Diagnostics**
+   - Gated server stderr logging behind the `DANTE_DEBUG=1` environment variable, piping uvicorn output to `tts_server.log` for crash diagnosis without cluttering normal operation.
+
+3. **UI Decoupling & Inline Refactoring**
+   - Extracted all remaining inline JavaScript strings from `reader_panel.py` into a unified `window.readerBridge` module in `app/assets/js/reader_bridge.js`, injecting it cleanly via the HTML processor.
+   - Extracted the `SourceViewerWindow` module out of the main panel code to strictly separate concerns.
+   - Cleaned up massive visual clutter by hoisting over 50 inline `import` statements out of instance methods to the top of `reader_panel.py` and `reader_window.py`, organizing them systematically.
+
+### 💡 Phase 10 Lessons Learned
+
+> [!CAUTION]
+> **Subprocess Orphan Accumulation via `atexit`**
+> **Symptom:** TTS requests timed out after 60 seconds with `HTTPConnectionPool read timed out`, even though the server subprocess appeared to be running.
+> **Diagnosis:** Python's `atexit` handlers are NOT called when the process is killed by a signal, crashes with a segfault, or when `os._exit()` is called. In a PyQt6 app where C++ segfaults can bypass Python's shutdown sequence, `atexit` is fundamentally unreliable for subprocess cleanup. Each restart spawned a new server on a random port, while old servers persisted indefinitely — all fighting over the same GPU.
+> **Lesson:** Never rely solely on `atexit` for subprocess cleanup in PyQt applications. Always implement: (1) a stale process scanner at startup, (2) explicit cleanup in `QMainWindow.closeEvent`, and (3) `atexit` as a last-resort fallback only.
+
+> [!TIP]
+> **Server Readiness Gates for Heavy Model Loading**
+> **Symptom:** The first TTS request would fire instantly after launching the server subprocess, but the OmniVoice model takes 30-120 seconds to load onto the GPU.
+> **Lesson:** When using a subprocess microservice architecture for ML models, always implement a `/status` health endpoint and poll it before sending work. The worker thread should block on readiness, not on the first request timeout.
+
+> [!TIP]
+> **Inline Imports vs Top-Level Imports**
+> **Symptom:** The core `reader_panel` and `reader_window` files were cluttered with over 60 `import` statements hidden inside method bodies, making dependencies impossible to track and adding minor runtime overhead.
+> **Lesson:** While inline imports are valid tools to prevent circular dependencies (e.g. inside a thread `run` method) or to lazily load extremely heavy optional dependencies (`ebooklib`), standard library modules (`os`, `json`, `time`) and core PyQt components should *always* be hoisted to the top of the file to maintain clean code and explicit dependency graphs.
+

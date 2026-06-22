@@ -4,8 +4,12 @@ Three-column layout: Library | Reader | Footnote/AI sidebar.
 Includes menus for View, TTS, and AI controls.
 """
 
-from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QAction
+import os
+import time
+import tempfile
+
+from PyQt6.QtCore import Qt, QTimer, QThread, pyqtSignal, QPropertyAnimation, QEasingCurve, QEvent, QUrl
+from PyQt6.QtGui import QAction, QCursor, QActionGroup, QKeySequence
 from PyQt6.QtWidgets import (
     QMainWindow,
     QSplitter,
@@ -17,17 +21,29 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QMessageBox,
     QPushButton,
+    QDialog,
+    QTextEdit,
+    QMenu,
+    QInputDialog,
+    QFileDialog,
+    QToolTip,
 )
 
 from .library_panel import LibraryPanel
 from .reader_panel import ReaderPanel
 from .ai_panel import AiPanel
+from .footnotes_panel import FootnotesPanel
+from .search_panel import SearchPanel
+from .userdata_panel import UserDataPanel
+from .ribbon_bar import CustomTitleBar, RibbonBar
 from .omnivoice_engine import OmniVoiceTTSEngine
 from .epub_loader import EpubBook
 from .url_scheme_handler import EpubSchemeHandler
 from .dictionary import DictionaryEngine
 from .config import load_api_key, load_prefs, save_prefs
 from .user_data import UserDataManager
+from .search_worker import SearchWorker
+from app.translation_manager import TranslationManager
 from app.ui_utils import get_icon
 
 class BookLoaderThread(QThread):
@@ -79,7 +95,6 @@ class DictionaryLLMWorker(QThread):
 
 class NoteDialog(QWidget):
     def __init__(self, title, prompt, text="", parent=None):
-        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton
         super().__init__(parent)
         self.dialog = QDialog(parent)
         self.dialog.setWindowTitle(title)
@@ -105,7 +120,6 @@ class NoteDialog(QWidget):
         layout.addLayout(btn_layout)
         
     def exec(self):
-        from PyQt6.QtWidgets import QDialog
         return self.dialog.exec() == QDialog.DialogCode.Accepted
         
     def textValue(self):
@@ -125,7 +139,6 @@ class ReaderWindow(QMainWindow):
         self._current_media_id = None
 
         self.setWindowTitle(self.tr("Dante EPUB Reader"))
-        from PyQt6.QtCore import Qt
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowSystemMenuHint | Qt.WindowType.WindowMinMaxButtonsHint)
         self.setMinimumSize(1000, 600)
         self.resize(
@@ -144,7 +157,6 @@ class ReaderWindow(QMainWindow):
         # Restore last book
         last = self._prefs.get("last_book")
         if last:
-            import os
             if os.path.isfile(last):
                 self._open_book(last)
 
@@ -154,10 +166,6 @@ class ReaderWindow(QMainWindow):
         self._scheme_handler = EpubSchemeHandler(self)
 
         # ── Panels ──
-        from .footnotes_panel import FootnotesPanel
-        from .search_panel import SearchPanel
-        from .user_data import UserDataManager
-        from .userdata_panel import UserDataPanel
         
         self._library = LibraryPanel(self)
         self._reader = ReaderPanel(self._scheme_handler, self)
@@ -212,7 +220,6 @@ class ReaderWindow(QMainWindow):
         self._splitter.setStretchFactor(1, 1)  # Reader: stretches
         self._splitter.setStretchFactor(2, 0)  # Sidebar: fixed-ish
 
-        from .ribbon_bar import CustomTitleBar, RibbonBar
         self._title_bar = CustomTitleBar(self)
         self._ribbon = RibbonBar(self)
         
@@ -252,7 +259,6 @@ class ReaderWindow(QMainWindow):
                 if msg.wParam:
                     return True, 0
             elif msg.message == 0x0084: # WM_NCHITTEST
-                from PyQt6.QtGui import QCursor
                 pos = self.mapFromGlobal(QCursor.pos())
                 margin = 8
                 
@@ -293,7 +299,6 @@ class ReaderWindow(QMainWindow):
 
     def changeEvent(self, event):
         super().changeEvent(event)
-        from PyQt6.QtCore import QEvent
         if event.type() == QEvent.Type.WindowStateChange:
             if hasattr(self, "_title_bar"):
                 self._title_bar.set_maximized_icon(self.isMaximized())
@@ -343,8 +348,6 @@ class ReaderWindow(QMainWindow):
         rb.epub_md_btn.toggled.connect(self._toggle_epub_md_mode)
         
         def create_exclusive_menu(btn, options, current_val, callback):
-            from PyQt6.QtWidgets import QMenu
-            from PyQt6.QtGui import QActionGroup
             menu = QMenu(self)
             group = QActionGroup(self)
             for val, label in options:
@@ -471,8 +474,6 @@ class ReaderWindow(QMainWindow):
         self._userdata_panel.edit_bookmark_requested.connect(self._on_edit_bookmark)
 
         # Keyboard shortcuts for Navigation
-        from PyQt6.QtGui import QKeySequence
-        from PyQt6.QtCore import Qt
         
         prev_shortcut = QAction(self)
         prev_shortcut.setShortcut(QKeySequence(Qt.Key.Key_Left))
@@ -538,7 +539,6 @@ class ReaderWindow(QMainWindow):
         if not self._user_data:
             return
             
-        from PyQt6.QtWidgets import QInputDialog
         label, ok = QInputDialog.getText(self, self.tr("Add Bookmark"), self.tr("Bookmark Label (optional):"))
         if ok:
             self._user_data.add_bookmark(chapter, pct, label)
@@ -568,14 +568,12 @@ class ReaderWindow(QMainWindow):
                 self._userdata_panel._tabs.setCurrentIndex(1)
 
     def _on_delete_bookmark(self, b_id: str):
-        from PyQt6.QtWidgets import QMessageBox
         reply = QMessageBox.question(self, self.tr("Delete Bookmark"), self.tr("Are you sure you want to delete this bookmark?"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             if self._user_data and self._user_data.remove_bookmark(b_id):
                 self._userdata_panel.populate_data(self._user_data.get_bookmarks(), self._user_data.get_notes())
 
     def _on_delete_note(self, n_id: str):
-        from PyQt6.QtWidgets import QMessageBox
         reply = QMessageBox.question(self, self.tr("Delete Note"), self.tr("Are you sure you want to delete this note?"), QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
             if self._user_data and self._user_data.remove_note(n_id):
@@ -596,7 +594,6 @@ class ReaderWindow(QMainWindow):
         if not self._user_data:
             return
             
-        from PyQt6.QtWidgets import QInputDialog
         dialog = QInputDialog(self)
         dialog.setWindowTitle(self.tr("Edit Bookmark"))
         dialog.setLabelText(self.tr("Bookmark Label:"))
@@ -612,7 +609,6 @@ class ReaderWindow(QMainWindow):
     # ═══════════════════════════════════
 
     def _on_open_file(self):
-        from PyQt6.QtWidgets import QFileDialog
         path, _ = QFileDialog.getOpenFileName(
             self, self.tr("Open Book"), "", self.tr("EPUB Files (*.epub);;PDF Files (*.pdf);;Dante Packages (*.dante *.zip);;All Files (*)")
         )
@@ -622,7 +618,6 @@ class ReaderWindow(QMainWindow):
     def _open_book(self, path: str) -> None:
         """Load and display an EPUB book asynchronously."""
         try:
-            import time
             self._load_start_time = time.time()
             print(f"[TIMER] Starting background book parse for: {path}", flush=True)
 
@@ -652,7 +647,6 @@ class ReaderWindow(QMainWindow):
         QMessageBox.warning(self, self.tr("Load Error"), self.tr("Could not load book:\n{error}").format(error=error_msg))
 
     def _on_book_loaded(self, book_obj, path: str) -> None:
-        import time
         if hasattr(self, '_load_start_time'):
             load_time = time.time() - self._load_start_time
             print(f"[TIMER] Book fully parsed in background in: {load_time:.3f} seconds", flush=True)
@@ -738,7 +732,6 @@ class ReaderWindow(QMainWindow):
         self._open_sidebar_to(self._search_panel)
         self._search_panel.show_loading(query)
         
-        from .search_worker import SearchWorker
         self._search_worker = SearchWorker(self._current_book, query, self)
         self._search_worker.finished.connect(lambda results, q=query: self._search_panel.load_results(results, q))
         self._search_worker.error.connect(self._search_panel.show_error)
@@ -756,7 +749,6 @@ class ReaderWindow(QMainWindow):
         
         def on_search_load_ready(ok=True):
             if ok:
-                from PyQt6.QtCore import QTimer
                 QTimer.singleShot(250, lambda: self._reader._page.findText(query))
             try:
                 self._reader._page.loadFinished.disconnect(on_search_load_ready)
@@ -776,8 +768,6 @@ class ReaderWindow(QMainWindow):
         source_lang = getattr(self._current_book, "language", "")
         
         definition = self._dictionary.lookup(word, source_lang, target_lang)
-        from PyQt6.QtWidgets import QToolTip
-        from PyQt6.QtGui import QCursor
         
         pos = QCursor.pos()
         
@@ -1081,8 +1071,6 @@ class ReaderWindow(QMainWindow):
             
         # We must extract the audio from the zip to a temporary file,
         # because QMediaPlayer (FFmpeg) does not understand our custom 'epub://' scheme.
-        import os
-        import tempfile
         try:
             audio_bytes = self._current_book.get_asset(filename)
             temp_dir = tempfile.gettempdir()
@@ -1159,7 +1147,6 @@ class ReaderWindow(QMainWindow):
 
 
     def _on_translation_requested(self, needed_blocks: list) -> None:
-        from app.translation_manager import TranslationManager
         
         backend_name = self._ai._backend_combo.currentText()
         model_name = self._ai._model_combo.currentText()

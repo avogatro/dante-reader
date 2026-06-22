@@ -25,6 +25,7 @@ class EpubHtmlProcessor:
         html = EpubHtmlProcessor._inject_external_js(html, "chapter_text_extractor.js")
         html = EpubHtmlProcessor._inject_external_js(html, "update_table_layout.js")
         html = EpubHtmlProcessor._inject_external_js(html, "translation_helper.js")
+        html = EpubHtmlProcessor._inject_external_js(html, "reader_bridge.js")
         
         html = EpubHtmlProcessor._inject_next_button(html)
         
