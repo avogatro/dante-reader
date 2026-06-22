@@ -6,6 +6,7 @@ Uses sounddevice to stream live audio.
 import logging
 import threading
 import queue
+import time
 import os
 from typing import Optional
 import numpy as np
@@ -64,18 +65,33 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
         )
         self._stream.start()
         
+        # Kill any orphaned TTS server processes from previous runs
+        self._kill_stale_servers()
+        
         # Launch the TTS Microservice as a completely independent subprocess
         self._port = self._get_free_port()
+        self._server_ready = False
+        
+        # In debug mode (DANTE_DEBUG=1), pipe stderr to a log file for diagnostics
+        self._server_log = None
+        if os.environ.get("DANTE_DEBUG"):
+            log_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'tts_server.log'))
+            self._server_log = open(log_path, 'w')
+            server_stderr = self._server_log
+            logging.info(f"[OMNIVOICE] Debug mode: server stderr → {log_path}")
+        else:
+            server_stderr = subprocess.DEVNULL
+        
         self._server_process = subprocess.Popen(
             [sys.executable, "-m", "uvicorn", "app.tts_server.server:app", "--port", str(self._port)],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=server_stderr,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
         )
         
-        # Ensure it cleans up
-        proc = self._server_process
-        atexit.register(lambda p=proc: p.terminate() if p else None)
+        # Register cleanup for normal exits
+        atexit.register(self.cleanup)
+        logging.info(f"[OMNIVOICE] TTS server launched on port {self._port} (PID {self._server_process.pid})")
 
     def _get_free_port(self):
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -83,9 +99,103 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
             return s.getsockname()[1]
             
     def _cleanup_server(self):
+        """Terminate the TTS server subprocess and close log file."""
         if self._server_process:
-            self._server_process.terminate()
+            try:
+                self._server_process.terminate()
+                self._server_process.wait(timeout=5)
+            except Exception:
+                try:
+                    self._server_process.kill()
+                except Exception:
+                    pass
             self._server_process = None
+        if self._server_log:
+            try:
+                self._server_log.close()
+            except Exception:
+                pass
+            self._server_log = None
+
+    def cleanup(self):
+        """Public cleanup: stop playback, kill server, close audio stream."""
+        self.stop()
+        self._cleanup_server()
+        if hasattr(self, '_stream') and self._stream:
+            try:
+                self._stream.stop()
+                self._stream.close()
+            except Exception:
+                pass
+
+    @staticmethod
+    def _kill_stale_servers():
+        """Kill any orphaned TTS server processes from previous app runs."""
+        if os.name == 'nt':
+            try:
+                result = subprocess.run(
+                    ['powershell', '-NoProfile', '-Command',
+                     "Get-CimInstance Win32_Process -Filter "
+                     "\"Name='python.exe' AND CommandLine LIKE '%uvicorn app.tts_server.server%'\" | "
+                     "ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"],
+                    capture_output=True, timeout=10,
+                    creationflags=subprocess.CREATE_NO_WINDOW
+                )
+                if result.returncode == 0:
+                    logging.info("[OMNIVOICE] Cleaned up stale TTS server processes")
+            except Exception as e:
+                logging.warning(f"[OMNIVOICE] Could not clean stale servers: {e}")
+        else:
+            try:
+                subprocess.run(
+                    ['pkill', '-f', 'uvicorn app.tts_server.server'],
+                    capture_output=True, timeout=5
+                )
+            except Exception:
+                pass
+
+    def _wait_for_server(self) -> bool:
+        """Poll the server's /status endpoint until it reports ready."""
+        if self._server_ready:
+            return True
+
+        max_wait = 300  # 5 minutes max for model loading
+        poll_interval = 2.0
+        elapsed = 0.0
+
+        logging.info("[OMNIVOICE] Waiting for TTS server to become ready...")
+
+        while elapsed < max_wait and not self._stop_flag.is_set():
+            # Check if subprocess crashed
+            if self._server_process and self._server_process.poll() is not None:
+                logging.error(f"[OMNIVOICE] Server process exited with code {self._server_process.returncode}")
+                self.error.emit("TTS server crashed during startup. Run with DANTE_DEBUG=1 for details.")
+                return False
+
+            try:
+                resp = requests.get(f"http://127.0.0.1:{self._port}/status", timeout=5)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    if data.get("status") == "ready":
+                        logging.info(f"[OMNIVOICE] Server ready after {elapsed:.0f}s")
+                        self._server_ready = True
+                        return True
+                    else:
+                        logging.info(f"[OMNIVOICE] Server status: {data.get('status')} ({elapsed:.0f}s elapsed)")
+            except requests.ConnectionError:
+                pass  # Server not yet listening
+            except Exception as e:
+                logging.debug(f"[OMNIVOICE] Status poll error: {e}")
+
+            time.sleep(poll_interval)
+            elapsed += poll_interval
+
+        if self._stop_flag.is_set():
+            return False
+
+        logging.error(f"[OMNIVOICE] Server did not become ready within {max_wait}s")
+        self.error.emit(f"TTS server did not become ready within {max_wait}s")
+        return False
 
     def _audio_callback(self, outdata, frames, time, status):
         """Called by sounddevice on a high-priority hardware thread to fetch audio frames."""
@@ -189,6 +299,10 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
 
     def _worker(self, sentences_map: list[tuple[str, str]]) -> None:
         try:
+            # Wait for server to finish loading the model before first request
+            if not self._wait_for_server():
+                return
+
             for i, (raw_sentence, clean_sentence) in enumerate(sentences_map):
                 if self._stop_flag.is_set():
                     break
@@ -208,7 +322,7 @@ class OmniVoiceTTSEngine(BaseTTSEngine):
                     response = requests.post(
                         f"http://127.0.0.1:{self._port}/generate", 
                         json=payload,
-                        timeout=60.0
+                        timeout=180.0
                     )
                     
                     if response.status_code != 200:

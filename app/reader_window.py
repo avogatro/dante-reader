@@ -1144,7 +1144,7 @@ class ReaderWindow(QMainWindow):
 
     def closeEvent(self, event) -> None:
         """Save window size and stop TTS on close."""
-        self._tts.stop()
+        self._tts.cleanup()
         self._prefs["window_width"] = self.width()
         self._prefs["window_height"] = self.height()
         save_prefs(self._prefs)
