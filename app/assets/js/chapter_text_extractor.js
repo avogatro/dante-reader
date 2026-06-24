@@ -1,13 +1,6 @@
 // Extracts text from the current selection or cursor to the end of the chapter, optionally restricting to a target class.
 window.extractChapterText = function(targetClass) {
     var sel = window.getSelection();
-    if (sel && sel.rangeCount > 0 && !sel.isCollapsed) {
-        var div = document.createElement('div');
-        div.appendChild(sel.getRangeAt(0).cloneContents());
-        var unwanted = div.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
-        unwanted.forEach(function(el) { el.remove(); });
-        return div.textContent;
-    }
     
     if (targetClass && document.querySelectorAll(targetClass).length === 0) {
         targetClass = '';
@@ -40,7 +33,37 @@ window.extractChapterText = function(targetClass) {
         var textPieces = [];
         for (var i = startIndex; i < cells.length; i++) {
             var cell = cells[i];
-            var clone = cell.cloneNode(true);
+            var clone;
+            
+            // If this is the starting cell and the user has a selection inside it, only extract from selection onwards
+            if (i === startIndex && fromNode && sel && sel.rangeCount > 0) {
+                var clickedTargetClass = false;
+                if (closestCell) {
+                    var classNames = targetClass.replace('.', '').split(' ');
+                    clickedTargetClass = classNames.some(cls => closestCell.classList.contains(cls));
+                }
+                
+                var selRange = sel.getRangeAt(0);
+                var startNode = selRange.startContainer;
+                
+                if (clickedTargetClass && cell.contains(startNode)) {
+                    var range = document.createRange();
+                    try {
+                        range.selectNodeContents(cell);
+                        range.setStart(startNode, selRange.startOffset);
+                        var fragment = range.cloneContents();
+                        clone = document.createElement('div');
+                        clone.appendChild(fragment);
+                    } catch (e) {
+                        // Fallback if range fails
+                        clone = cell.cloneNode(true);
+                    }
+                } else {
+                    clone = cell.cloneNode(true);
+                }
+            } else {
+                clone = cell.cloneNode(true);
+            }
             
             // Remove multimedia buttons, images, and superscripts (like [183])
             var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
