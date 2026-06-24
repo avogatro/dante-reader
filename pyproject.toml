@@ -25,3 +25,7 @@ max-complexity = 15
 # Exclude tests and external files from radon calculation
 exclude = "test_*.py"
 cc_min = "B" # Only show functions with complexity B or worse (A is good)
+
+[tool.pytest.ini_options]
+# Add the project root to the pythonpath so tests can import 'app'
+pythonpath = "."

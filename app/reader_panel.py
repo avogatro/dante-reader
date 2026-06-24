@@ -585,13 +585,12 @@ class ReaderPanel(QWidget):
                 if index >= 0:
                     self._table_tts_combo.setCurrentIndex(index)
                 else:
-                    # Fallback for normal EPUB mode without data keys
                     if track == "original":
-                        idx = self._table_tts_combo.findText("Original")
+                        idx = self._table_tts_combo.findText(self.tr("Original"))
                         if idx >= 0:
                             self._table_tts_combo.setCurrentIndex(idx)
                     elif track == "translation" or track == "ai_translation":
-                        idx = self._table_tts_combo.findText("AI Translation")
+                        idx = self._table_tts_combo.findText(self.tr("AI Translation"))
                         if idx >= 0:
                             self._table_tts_combo.setCurrentIndex(idx)
                             
@@ -696,7 +695,7 @@ class ReaderPanel(QWidget):
         else:
             # Standard EPUB mode
             target = self._table_tts_combo.currentText()
-            if target == "Original":
+            if target == self.tr("Original"):
                 target_selector = ".track-original"
             else:
                 target_selector = ".track-translation"
@@ -717,9 +716,9 @@ class ReaderPanel(QWidget):
         else:
             # Standard EPUB mode
             target = self._table_tts_combo.currentText()
-            if target == "Original":
+            if target == self.tr("Original"):
                 target_class = ".track-original"
-            elif target == "AI Translation":
+            elif target == self.tr("AI Translation"):
                 target_class = ".track-translation"
                 
         safe_target = json.dumps(target_class) if target_class else "''"

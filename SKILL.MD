@@ -360,3 +360,9 @@ The goal of this project was to establish an **ultra-premium, fully offline-capa
 > **Symptom:** Regex replacements converting `viewbox` to `viewBox` inside EPUB HTML appeared to randomly fail and revert back to lowercase when rendered in the Chromium engine.
 > **Diagnosis:** `BeautifulSoup`, when initialized with the standard `html.parser`, forcefully lowercases all element attributes by design. If raw string regex manipulation (like fixing camelCase XML attributes) occurs *before* a BeautifulSoup pass (e.g., to inject translation IDs), BeautifulSoup will completely overwrite the case-sensitive fixes.
 > **Lesson:** Always run raw string HTML regex patches **after** all DOM-tree parsing libraries have completely finished executing, right before the HTML is sent to the browser engine.
+
+> [!CAUTION]
+> **Headless DOM Selection & the Document Node**
+> **Symptom:** Text-to-Speech extraction via `window.getSelection()` randomly failed silently across all books, causing playback to immediately stop without errors.
+> **Diagnosis:** When extracting text without an active user selection, `getSelection().anchorNode` can sometimes point to the root `#document` node instead of `<body>` or an `Element`. Attempting to call standard DOM traversal methods like `.closest()` directly on `Document` nodes throws a `TypeError: fromNode.closest is not a function`, instantly crashing the Javascript execution before it can return the text payload to Python.
+> **Lesson:** `Document` and `Text` nodes do not share the exact same traversal prototypes as standard `Element` nodes. When operating on headless selections or raw DOM nodes, explicitly check `nodeType === 9` (Document) and route traversal through `node.body`, or `nodeType === 3` (Text) and route through `node.parentElement`.

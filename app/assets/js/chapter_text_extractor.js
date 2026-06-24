@@ -18,7 +18,15 @@ window.extractChapterText = function(targetClass) {
         var cells = Array.from(document.querySelectorAll(targetClass));
         var startIndex = 0;
         if (fromNode) {
-            var closestCell = fromNode.nodeType === 3 ? fromNode.parentElement.closest('td, .track-original, .track-translation') : fromNode.closest('td, .track-original, .track-translation');
+            var closestCell = null;
+            if (fromNode.nodeType === 3 || fromNode.nodeType === 8) { // Text or Comment node
+                closestCell = fromNode.parentElement ? fromNode.parentElement.closest('td, .track-original, .track-translation') : null;
+            } else if (typeof fromNode.closest === 'function') { // Element node
+                closestCell = fromNode.closest('td, .track-original, .track-translation');
+            } else if (fromNode.nodeType === 9 && fromNode.body) { // Document node
+                closestCell = fromNode.body.closest('td, .track-original, .track-translation');
+            }
+            
             if (closestCell) {
                 var tr = closestCell.closest('tr, .translation-row');
                 if (tr) {
@@ -53,9 +61,9 @@ window.extractChapterText = function(targetClass) {
     }
     
     if (targetClass && document.querySelectorAll(targetClass).length > 0) {
-        return extractDanteText(sel.anchorNode);
+        return extractDanteText(sel ? sel.anchorNode : null);
     } else {
-        if (sel.rangeCount > 0) {
+        if (sel && sel.rangeCount > 0) {
             if (!sel.isCollapsed) {
                 // Selection is highlighted text, just return that
                 var div = document.createElement('div');
