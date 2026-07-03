@@ -65,6 +65,13 @@ window.extractChapterText = function(targetClass) {
                 clone = cell.cloneNode(true);
             }
             
+            // Replace newlines in text nodes with spaces so that literal HTML formatting newlines don't break sentences
+            var walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT, null, false);
+            var node;
+            while (node = walker.nextNode()) {
+                node.nodeValue = node.nodeValue.replace(/[\r\n]+/g, ' ');
+            }
+            
             // Remove multimedia buttons, images, and superscripts (like [183])
             var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
             elementsToRemove.forEach(function(el) { el.remove(); });
@@ -106,6 +113,13 @@ window.extractChapterText = function(targetClass) {
                 var unwanted = div.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
                 unwanted.forEach(function(el) { el.remove(); });
                 
+                // Replace newlines in text nodes with spaces so that literal HTML formatting newlines don't break sentences
+                var walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT, null, false);
+                var node;
+                while (node = walker.nextNode()) {
+                    node.nodeValue = node.nodeValue.replace(/[\r\n]+/g, ' ');
+                }
+                
                 var blocks = div.querySelectorAll('p, div, h1, h2, h3, h4, h5, h6, li');
                 blocks.forEach(function(el) { el.appendChild(document.createTextNode('\n')); });
                 var brs = div.querySelectorAll('br');
@@ -115,6 +129,14 @@ window.extractChapterText = function(targetClass) {
             }
         }
         var clone = document.body.cloneNode(true);
+        
+        // Replace newlines in text nodes with spaces so that literal HTML formatting newlines don't break sentences
+        var walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT, null, false);
+        var node;
+        while (node = walker.nextNode()) {
+            node.nodeValue = node.nodeValue.replace(/[\r\n]+/g, ' ');
+        }
+        
         var elementsToRemove = clone.querySelectorAll('button, div[data-audio-id], div[data-video-id], img, sup, .linenum, .pagenum');
         elementsToRemove.forEach(function(el) { el.remove(); });
         
